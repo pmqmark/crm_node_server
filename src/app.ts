@@ -3,22 +3,28 @@ import path from 'path';
 import cookieParser from 'cookie-parser';
 import logger from 'morgan';
 import createError from 'http-errors';
+import config from './config/env.config';
 
-// Import routes with explicit .js extension
 import indexRouter from './routes/index';
-
 
 const app: Express = express();
 
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'ejs');
 
-app.use(logger('dev'));
+// Use morgan logger only in development
+if (config.NODE_ENV === 'development') {
+  app.use(logger('dev'));
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, '../public')));
+
+// Basic error handler
+const errorHandler = (err: Error, req: Request, res: Response, next: NextFunction) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+};
 
 app.use('/', indexRouter);
 
@@ -28,20 +34,11 @@ app.use(function(req: Request, res: Response, next: NextFunction) {
   next(createError(404));
 });
 
-// error handler
-app.use(function(err: any, req: Request, res: Response, next: NextFunction) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+app.use(errorHandler);
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
-});
-
-const port = process.env.PORT || 3000;
+const port = config.PORT;
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`Server is running in ${config.NODE_ENV} mode on port ${port}`);
 });
 
 export default app;
