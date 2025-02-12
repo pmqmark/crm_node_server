@@ -6,10 +6,12 @@ import createError from 'http-errors';
 import config from './config/env.config';
 
 import indexRouter from './routes/index';
-
+var db=require('../database/connection')
+    
+    
 const app: Express = express();
 
-
+db.connect();
 // Use morgan logger only in development
 if (config.NODE_ENV === 'development') {
   app.use(logger('dev'));
@@ -37,6 +39,7 @@ app.use(function(req: Request, res: Response, next: NextFunction) {
 app.use(errorHandler);
 
 const port = config.PORT;
+
 app.listen(port, () => {
   console.log(`Server is running in ${config.NODE_ENV} mode on port ${port}`);
 });

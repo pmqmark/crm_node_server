@@ -1,8 +1,10 @@
-// src/config/env.config.ts
 import dotenv from 'dotenv';
+import path from 'path';
 
-// Load environment variables from .env file
-dotenv.config();
+// Load environment variables from .env.development file
+dotenv.config({ 
+  path: path.resolve(__dirname, '.env.development')
+});
 
 interface IConfig {
   NODE_ENV: string;
@@ -16,7 +18,7 @@ const getConfig = (): IConfig => {
     NODE_ENV: process.env.NODE_ENV || 'development',
     PORT: Number(process.env.PORT) || 3000,
     DATABASE_URL: process.env.DATABASE_URL,
-    JWT_SECRET: process.env.JWT_SECRET
+    JWT_SECRET: process.env.ACCESS_TOKEN_SECRET
   };
 };
 
