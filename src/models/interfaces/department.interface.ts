@@ -5,4 +5,4 @@ export interface IDepartment {
     roles?: string[];     // Optional department roles
     description?: string; // Added optional description
     id:number
-  }
+}
