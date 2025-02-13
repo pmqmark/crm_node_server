@@ -4,7 +4,6 @@ export interface IUser {
     password: string;
     createdAt: Date;
     updatedAt: Date;
-    companyId:string,
     roles:"admin"|"Employee",
     isActive: boolean;
 }

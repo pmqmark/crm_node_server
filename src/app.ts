@@ -6,6 +6,7 @@ import createError from 'http-errors';
 import config from './config/env.config';
 
 import indexRouter from './routes/index';
+import departmentRouter from './routes/department'
 var db=require('../database/connection')
     
     
@@ -29,6 +30,7 @@ const errorHandler = (err: Error, req: Request, res: Response, next: NextFunctio
 };
 
 app.use('/', indexRouter);
+app.use('/department',departmentRouter)
 
 
 // catch 404 and forward to error handler

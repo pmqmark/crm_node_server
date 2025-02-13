@@ -19,13 +19,11 @@ const userSchema = new Schema<IUser>(
         required: true,
         enum: ["admin", "employee"],
     },
-    isActive: { // ✅ Add this property
+    isActive: { 
       type: Boolean,
       default: true // Default to active
     },
-    companyId:{
-      type:String
-    }
+    
     
   },
   {

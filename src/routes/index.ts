@@ -3,6 +3,7 @@ import { UserController } from '../controller/user.controller';
 import {AuthController} from '../controller/auth.controller'
 const router: Router = express.Router();
 import { AuthRequest, authMiddleware } from '../middleware/auth.middleware';
+import { roleGuard } from '../middleware/role.guard';
 
 /* GET home page. */
 router.get('/', function(req: Request, res: Response, next: NextFunction) {
@@ -26,7 +27,13 @@ router.get('/protected',
     res.json({ user: req.user });
   }
 );
-
+// router.get('/create-department', 
+//   authMiddleware,
+//   roleGuard(['admin']),
+//   (req: AuthRequest, res) => {
+//     res.json({ message: 'Admin route' });
+//   }
+// );
 
 
 export default router;
