@@ -1,17 +1,17 @@
 import { Types } from 'mongoose';
-export interface IUser {
-    email: string;
-    password: string;
+import { CreateUserDto } from '../dtos/user.dto';
+
+export interface IClient extends CreateUserDto {
+    position: string;
+    packageDetails: string;
     createdAt: Date;
     updatedAt: Date;
-    roles:"admin"|"Employee",
     isActive: boolean;
 }
 
-
-export interface ValidatedUser {
-  _id: Types.ObjectId;
-  email: string;
-  
-  roles:string
+export interface ValidatedClient {
+    _id: Types.ObjectId;
+    email: string;
+    position: string;
+    packageDetails: string;
 }
