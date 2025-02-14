@@ -1,7 +1,7 @@
 import mongoose, { Schema, model } from 'mongoose';
-import { IUser } from './interfaces/user.interface';
+import { IClient } from './interfaces/client.interface';
 
-const clientSchema = new Schema<IUser>(
+const clientSchema = new Schema<IClient>(
   {
     email: {
       type: String,
@@ -16,11 +16,11 @@ const clientSchema = new Schema<IUser>(
     },
     position: {
       type: String,
-      required: true
+      required: false
     },
     packageDetails: {
       type: String,
-      required: true
+      required: false
     },
     isActive: { 
       type: Boolean,
@@ -38,4 +38,4 @@ const clientSchema = new Schema<IUser>(
   }
 );
 
-export const ClientModel = model<IUser>('Client', clientSchema);
+export const ClientModel = model<IClient>('Client', clientSchema);

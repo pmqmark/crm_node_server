@@ -1,8 +1,11 @@
 import { Types } from 'mongoose';
-import { CreateClientDto } from '../dtos/client.dto';
 
-export interface IClient extends CreateClientDto {
+export interface IClient {
     _id: Types.ObjectId;
+    email: string;
+    password: string;
+    position?: string;
+    packageDetails?: string;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;

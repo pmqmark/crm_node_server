@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { ClientService } from '../services/client.services';
+import { ClientService } from '../services/client.service';
 import { CreateClientDto } from '../dtos/client.dto';
 
 export class ClientController {
