@@ -3,36 +3,45 @@ import bcrypt from "bcrypt";
 import User from '../models/user' // Ensure correct path
 import { CreateUserDto, loginUserDto, validitatedUser } from "../dtos/userdto"; // Ensure correct path
 import { generateAccessToken, generateRefreshToken } from "../middleware/tokenMiddleware";
+import Admin from "../models/admin";
+import { CreateAdminDto } from "../dtos/admindto";
 
 export class AuthService {
-  async createUser(req: Request, res: Response): Promise<Response> {
+  async createAdmin (req: Request, res: Response): Promise<Response>{
     try {
-      const userData: CreateUserDto = req.body;
-      if (userData.password) {
-        userData.password = await bcrypt.hash(userData.password, 10);
-      }
-      console.log(userData.password)
-      const usr = new User({
-        role: userData.role,
-        email: userData.email,
-        password: userData.password,
+      const adminData: CreateAdminDto = req.body;
+      
+      // Hash password
+      const hashedPassword = await bcrypt.hash(adminData.password, 10);
+      
+      // Create new admin
+      const admin = new Admin({
+        email: adminData.email,
+        password: hashedPassword,
+        username: adminData.username,
+        admin_id: adminData.admin_id,
         createdAt: new Date(),
         lastLogin: null,
       });
-
-      const savedusr = await usr.save();
+  
+      const savedAdmin = await admin.save();
+  
       return res.status(201).json({
-        message: "User created successfully",
-        user: savedusr,
+        message: "Admin created successfully",
+        admin: savedAdmin,
       });
-
+  
     } catch (error: unknown) {
       if (error instanceof Error) {
-        return res.status(500).json({ message: `Error creating user: ${error.message}` });
+        return res.status(500).json({ 
+          message: `Error creating admin: ${error.message}` 
+        });
       }
-      return res.status(500).json({ message: "An unknown error occurred while creating user" });
+      return res.status(500).json({ 
+        message: "An unknown error occurred while creating admin" 
+      });
     }
-  }
+};
 
 
 
@@ -42,7 +51,7 @@ export class AuthService {
       const {email,password}=userData
 
         const usr = await User.findOne({ email }); 
-        console.log(usr)  
+          
         if (!usr) {
         throw new Error('Invalid credentials');
         }
@@ -86,24 +95,6 @@ export class AuthService {
 
       
 
-// async validateUser(email: string, password: string): Promise<ValidatedUser> {
-//     const user = await UserModel.findOne({ email });   
-//     if (!user) {
-//       throw new Error('Invalid credentials');
-//     }
-//     const isPasswordValid = await bcrypt.compare(password, user.password);
-//     if (!isPasswordValid) {
-//       throw new Error('Invalid credentials');
-//     }
-//     if (!user?.isActive) {
-//       throw new Error('Inactive User');
-//     }
-//     return {
-//       _id: user._id,
-//       email: user.email,
-//       roles: user.roles
-//     };
-//   }
 
   
 

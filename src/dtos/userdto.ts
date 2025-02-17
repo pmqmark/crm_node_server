@@ -19,8 +19,8 @@ export interface IUser extends Document {
     firstName: string;
     lastName: string;
     phone: string;
-    department_id: Schema.Types.ObjectId;
-    role_id: Schema.Types.ObjectId;
+    department_id: Types.ObjectId;
+    role_id?: Types.ObjectId;
     hireDate: Date;
   }
 export interface CreateUserDto {

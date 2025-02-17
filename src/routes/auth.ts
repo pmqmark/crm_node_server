@@ -7,7 +7,7 @@ const authService = new AuthService();
 const router = Router();
 
 router.post('/create-admin', async (req, res) => {
-    await authService.createUser(req, res);
+    await authService.createAdmin(req, res);
 });
 
 router.post('/login', async (req, res) => {

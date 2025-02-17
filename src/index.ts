@@ -11,6 +11,7 @@ dotenv.config({
 
 import  adminRouter from "./routes/admin";
 import authRouter from "./routes/auth"
+import employeerouter from "./routes/employee"
 import { generateAccessToken, generateRefreshToken } from "./middleware/tokenMiddleware";
 
 
@@ -19,13 +20,12 @@ db.connect()
 app.use(CookieParser())
 app.use(express.json()); // ✅ Parses JSON bodies
 app.use(express.urlencoded({ extended: true })); // ✅ Parses URL-encoded bodies
-
 app.use('/api/admin',adminRouter)
 app.use('/api/auth',authRouter)
+app.use('/api/employee',employeerouter)
 
 
-
-const PORT=process.env.PORT;
+const PORT=process.env.PORT||3000;
 console.log(PORT)
 
 app.listen(PORT,()=>{

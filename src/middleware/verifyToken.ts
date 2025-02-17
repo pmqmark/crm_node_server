@@ -49,21 +49,21 @@ export const authMiddleware = (
     }
 
     const token = authHeader.split(' ')[1];
-    console.log(token)
+    
     if (!token) {
       res.status(401).json({ message: 'No token provided' });
       return;
     }
-    console.log(process.env.ACCESS_TOKEN_SECRET as string)
+    
 
     const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET as string);
     
     if (!isJWTPayload(decoded)) {
-        console.log('failed',decoded)
+        
       res.status(401).json({ message: 'Invalid token payload' });
       return;
     }
-    console.log(decoded)
+    
 
     req.user = {
       id: decoded.id,

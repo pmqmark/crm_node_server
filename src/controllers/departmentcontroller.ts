@@ -33,7 +33,7 @@ export class DepartmentController {
         });
       }
 
-      // Create update object only with provided fields
+     
       const updateFields: DepartmentUpdateFields = {};
 
       if (updateData.name !== undefined) {
@@ -44,9 +44,9 @@ export class DepartmentController {
         updateFields.description = updateData.description;
       }
 
-      // If manager_id is provided, validate the employee exists
+     
       if (updateData.manager_id !== undefined) {
-        // Validate if the provided ID is a valid ObjectId
+       
         if (!Types.ObjectId.isValid(updateData.manager_id)) {
           throw new Error(
             `Invalid manager_id format: ${updateData.manager_id}`
@@ -65,7 +65,7 @@ export class DepartmentController {
         updateFields.manager_id = new Types.ObjectId(updateData.manager_id);
       }
 
-      // Update the department with validation
+     
       const updatedDepartment = await Department.findOneAndUpdate(
         { _id: updateData.id },
         { $set: updateFields },
@@ -93,4 +93,21 @@ export class DepartmentController {
       });
     }
   }
+
+  async listDepartments(req: Request, res: Response): Promise<Response> {
+    try {
+      const departments = await Department.find();
+  
+      return res.status(200).json({
+        message: "Departments retrieved successfully",
+        data: departments
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error retrieving departments",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+  
 }

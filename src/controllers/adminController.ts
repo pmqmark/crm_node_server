@@ -13,10 +13,10 @@ export class AdminController{
         try {
           const adminData: CreateAdminDto = req.body;
           
-          // Hash password
+         
           const hashedPassword = await bcrypt.hash(adminData.password, 10);
           
-          // Create new admin
+          
           const admin = new Admin({
             email: adminData.email,
             password: hashedPassword,
@@ -50,10 +50,9 @@ export class AdminController{
       try {
         const employeeData: CreateEmployeeDto = req.body;
         
-        // Hash password
+        
         const hashedPassword = await bcrypt.hash(employeeData.password, 10);
         
-        // Create new admin
         const employee = new Employee({
           employee_id: employeeData.employee_id,
           firstName: employeeData.firstName,
@@ -91,7 +90,7 @@ export class AdminController{
     try {
       const departmentData: IDepartment = req.body;
   
-      // If manager_id is provided, check if the employee exists
+     
       if (departmentData.manager_id) {
         const managerExists = await Employee.findById(departmentData.manager_id);
         if (!managerExists) {
@@ -99,7 +98,7 @@ export class AdminController{
         }
       }
   
-      // Create department
+      
       const department = new Department({
         name: departmentData.name,
         description: departmentData.description,
