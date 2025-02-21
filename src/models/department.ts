@@ -19,6 +19,10 @@ const departmentSchema = new Schema<IDepartment>({
       type: Date,
       default: Date.now,
     },
+    permissions: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Permission'
+    }]
   });
 
 const Department = mongoose.model<IDepartment>('Department', departmentSchema);

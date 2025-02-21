@@ -6,4 +6,5 @@ export interface IDepartment extends Document {
     description: string;
     manager_id?: Types.ObjectId;
     created_at: Date;
+    permissions?: string[];
   }
