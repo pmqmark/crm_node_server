@@ -33,6 +33,10 @@ import User from './user'
       type: Date,
       required: true,
     },
+    permissions: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Permission'
+    }]
   });
 
   const Employee = User.discriminator<IEmployee>('Employee', employeeSchema);
