@@ -36,7 +36,7 @@ export class DepartmentController {
         updateFields.description = updateData.description;
       }
       if (updateData.permissions !== undefined) {
-        // Minimal change: convert string[] (if provided) to ObjectId[]
+        // Convert string[] permissions to ObjectId[]
         updateFields.permissions = Array.isArray(updateData.permissions)
           ? updateData.permissions.map((permId: string) => new Types.ObjectId(permId))
           : updateData.permissions;

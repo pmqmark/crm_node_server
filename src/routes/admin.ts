@@ -47,6 +47,13 @@ router.delete('/deleteemployee',(req,res,next)=>{
     employeeController.deleteEmployee(req,res)
 })
 
+router.post('/permission', (req, res) => {
+    adminController.createPermission(req, res);
+  });
+
+router.get('/permission', (req, res) => {
+    adminController.listPermissions(req, res);
+  });
 export default router;
 
 

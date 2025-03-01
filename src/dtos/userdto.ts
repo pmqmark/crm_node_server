@@ -22,6 +22,7 @@ export interface IUser extends Document {
     department_id: Types.ObjectId;
     role_id?: Types.ObjectId;
     hireDate: Date;
+    permissions?: Types.ObjectId[];
   }
 export interface CreateUserDto {
     role:string,

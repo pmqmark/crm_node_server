@@ -10,6 +10,7 @@ export interface CreateEmployeeDto {
     phone: string;
     department_id?: Schema.Types.ObjectId;
     role_id?: Schema.Types.ObjectId;
+    permissions?: Types.ObjectId[];
   }
 
  export interface EmployeeUpdateFields {
@@ -22,4 +23,5 @@ export interface CreateEmployeeDto {
       email?: string;
       password?: string;
       hireDate?: Date;
+      permissions?: Types.ObjectId[];
     }
