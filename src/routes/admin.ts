@@ -14,6 +14,10 @@ router.post('/createadmin',(req,res,next)=>{
     
     adminController.createAdmin(req,res)
 });
+router.get('/test', (req, res) => {
+    res.status(200).send('Everything is working fine!');
+});
+
 
 router.post('/createemployee',(req,res,next)=>{
     adminController.createEmployee(req,res)
