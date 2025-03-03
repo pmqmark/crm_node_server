@@ -61,6 +61,7 @@ export interface IClient extends IUser {
   phone: string;
   address?: string;
   createdAt: Date;
+  description:string;
 }
 
 

@@ -21,6 +21,12 @@ const clientSchema = new Schema<IClient>({
     type: String,
     required: false,
   },
+  description: {
+    type: String,
+    required: true,
+  }
+
+
   
 });
 

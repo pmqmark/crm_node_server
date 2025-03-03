@@ -61,6 +61,7 @@ export class AdminController{
           contactPerson: clientData.contactPerson,
           phone: clientData.phone,
           address: clientData.address,
+          description:clientData.description,
           createdAt: new Date(),
           lastLogin: null,
         });
