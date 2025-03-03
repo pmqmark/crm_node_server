@@ -12,18 +12,13 @@ const roleSchema = new Schema<IRole>({
       required: true
     },
     permissions: [{
-      type: String,
-      required: true
+      type: String
     }],
-    department_id: {
-      type: Schema.Types.ObjectId,
-      ref: 'Department',
-      required: false 
-    }
+    
   });
   
  
-roleSchema.index({ name: 1, department_id: 1 }, { unique: true });
+
 
 const Role = mongoose.model<IRole>('Role', roleSchema);
 export default Role;

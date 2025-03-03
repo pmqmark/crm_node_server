@@ -7,6 +7,8 @@ import Admin from '../models/admin'
 import Employee from "../models/employee";
 import Department from "../models/department";
 import { Client, IClient } from "../models/client";
+import Role from "../models/role";
+import { IRole } from "../dtos/roledto";
 
 
 export class AdminController{
@@ -82,7 +84,34 @@ export class AdminController{
     }
 
 
+    async  createRoles(req: Request, res: Response): Promise<Response>{
+      try {
+        const { name, description } = req.body;
     
+        // Create a new role with an empty permissions array
+        const role = new Role({
+          name,
+          description,
+          permissions: [], // Empty array for now
+        });
+    
+        const savedRole = await role.save();
+    
+        return res.status(201).json({
+          message: 'Role created successfully',
+          role: savedRole,
+        });
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          return res.status(500).json({
+            message: `Error creating role: ${error.message}`,
+          });
+        }
+        return res.status(500).json({
+          message: 'An unknown error occurred while creating the role',
+        });
+      }
+    }
 
 
    async createEmployee(req: Request, res: Response): Promise<Response> {
@@ -164,6 +193,8 @@ export class AdminController{
       });
     }
   }
+
+  
 
   async listClients(req: Request, res: Response): Promise<Response> {
     try {
