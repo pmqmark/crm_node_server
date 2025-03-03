@@ -51,6 +51,15 @@ router.post('/createclient',(req,res,next)=>{
     adminController.createClient(req,res)
 })
 
+
+router.post('/add-project',(req,res,next)=>{
+    departmentcontroller.createProject(req,res)
+})
+
+
+router.get('/list-clients',(req,res,next)=>{
+    adminController.listClients(req,res)
+})
 export default router;
 
 

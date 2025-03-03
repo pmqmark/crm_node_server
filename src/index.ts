@@ -23,7 +23,7 @@ app.use(express.urlencoded({ extended: true })); // ✅ Parses URL-encoded bodie
 app.use('/api/admin',adminRouter)
 app.use('/api/auth',authRouter)
 app.use('/api/employee',employeerouter)
-
+app.use(cors());
 
 const PORT=process.env.PORT||3000;
 console.log(PORT)
