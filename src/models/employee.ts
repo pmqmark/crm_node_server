@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import {IUser,IAdmin,IEmployee} from "../dtos/userdto"
 import User from './user'
+
   const employeeSchema = new Schema<IEmployee>({
     employee_id: {
       type: String,
@@ -33,6 +34,40 @@ import User from './user'
       type: Date,
       required: true,
     },
+    dob:{
+      type: Date,
+      required: true,
+    },
+    addressline1: {
+      type: String,
+      required: true,
+    },
+    addressline2: {
+      type: String,
+      required: true,
+    },
+    city: {
+      type: String,
+      required: true,
+    },
+    state: {
+      type: String,
+      required: true,
+    },
+
+    country: {
+      type: String,
+      required: true,
+    },
+    postalcode: {
+      type: String,
+      required: true,
+    },
+    employeebio: {
+      type: String,
+      required: true,
+    }
+
   });
 
   const Employee = User.discriminator<IEmployee>('Employee', employeeSchema);

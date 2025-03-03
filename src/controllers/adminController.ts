@@ -6,6 +6,7 @@ import { IDepartment } from "../dtos/departmentdto";
 import Admin from '../models/admin'
 import Employee from "../models/employee";
 import Department from "../models/department";
+import { Client, IClient } from "../models/client";
 
 
 export class AdminController{
@@ -45,46 +46,90 @@ export class AdminController{
         }
     };
 
-
-    async createEmployee (req: Request, res: Response): Promise<Response>{
+    async  createClient(req: Request, res: Response): Promise<Response> {
       try {
-        const employeeData: CreateEmployeeDto = req.body;
-        
-        
-        const hashedPassword = await bcrypt.hash(employeeData.password, 10);
-        
-        const employee = new Employee({
-          employee_id: employeeData.employee_id,
-          firstName: employeeData.firstName,
-          lastName: employeeData.lastName,
-          email: employeeData.email,
+        const clientData: IClient = req.body;
+    
+        const hashedPassword = await bcrypt.hash(clientData.password, 10);
+    
+        const client = new Client({
+          email: clientData.email,
           password: hashedPassword,
-          phone: employeeData.phone,
-          hireDate: new Date(),
+          companyName: clientData.companyName,
+          contactPerson: clientData.contactPerson,
+          phone: clientData.phone,
+          address: clientData.address,
           createdAt: new Date(),
           lastLogin: null,
-          ...(employeeData.department_id && { department_id: employeeData.department_id }),
-          ...(employeeData.role_id && { role_id: employeeData.role_id }),
         });
     
-        const savedEmployee = await employee.save();
+        const savedClient = await client.save();
     
         return res.status(201).json({
-          message: "Employee created successfully",
-          admin: savedEmployee,
+          message: 'Client created successfully',
+          client: savedClient,
         });
-    
       } catch (error: unknown) {
         if (error instanceof Error) {
-          return res.status(500).json({ 
-            message: `Error creating Employee: ${error.message}` 
+          return res.status(500).json({
+            message: `Error creating client: ${error.message}`,
           });
         }
-        return res.status(500).json({ 
-          message: "An unknown error occurred while creating Employee" 
+        return res.status(500).json({
+          message: 'An unknown error occurred while creating client',
         });
       }
-  };
+    }
+
+
+    
+
+
+   async createEmployee(req: Request, res: Response): Promise<Response> {
+  try {
+    const employeeData: CreateEmployeeDto = req.body;
+
+    const hashedPassword = await bcrypt.hash(employeeData.password, 10);
+
+    const employee = new Employee({
+      employee_id: employeeData.employee_id,
+      firstName: employeeData.firstName,
+      lastName: employeeData.lastName,
+      email: employeeData.email,
+      password: hashedPassword,
+      phone: employeeData.phone,
+      hireDate: employeeData.hireDate,
+      dob: employeeData.dob,
+      addressline1: employeeData.addressline1,
+      addressline2: employeeData.addressline2,
+      city: employeeData.city,
+      state: employeeData.state,
+      country: employeeData.country,
+      postalcode: employeeData.postalcode,
+      employeebio: employeeData.employeebio,
+      createdAt: new Date(),
+      lastLogin: null,
+      ...(employeeData.department_id && { department_id: employeeData.department_id }),
+      ...(employeeData.role_id && { role_id: employeeData.role_id }),
+    });
+
+    const savedEmployee = await employee.save();
+
+    return res.status(201).json({
+      message: "Employee created successfully",
+      employee: savedEmployee,
+    });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return res.status(500).json({
+        message: `Error creating Employee: ${error.message}`,
+      });
+    }
+    return res.status(500).json({
+      message: "An unknown error occurred while creating Employee",
+    });
+  }
+};
 
   async createDepartment (req: Request, res: Response) {
     try {
@@ -115,6 +160,22 @@ export class AdminController{
     } catch (error) {
       return res.status(500).json({
         message: "Error creating department",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  async listClients(req: Request, res: Response): Promise<Response> {
+    try {
+      const clients = await Client.find();
+
+      return res.status(200).json({
+        message: "clients retrieved successfully",
+        data: clients
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error retrieving employees",
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }

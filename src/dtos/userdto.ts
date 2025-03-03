@@ -19,10 +19,19 @@ export interface IUser extends Document {
     firstName: string;
     lastName: string;
     phone: string;
-    department_id: Types.ObjectId;
-    role_id?: Types.ObjectId;
+    department_id?: Schema.Types.ObjectId;
+    role_id?: Schema.Types.ObjectId;
     hireDate: Date;
+    dob: Date; // Ensure this field exists
+    addressline1: string;
+    addressline2: string;
+    city: string;
+    state: string;
+    country: string;
+    postalcode: string;
+    employeebio: string;
   }
+  
 export interface CreateUserDto {
     role:string,
     email:string,
@@ -44,4 +53,14 @@ export interface validitatedUser {
     accesstoken?:string,
     refreshtoken?:string
 }
+
+export interface IClient extends IUser {
+  
+  companyName: string;
+  contactPerson: string;
+  phone: string;
+  address?: string;
+  createdAt: Date;
+}
+
 

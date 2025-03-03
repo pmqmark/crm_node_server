@@ -47,6 +47,10 @@ router.delete('/deleteemployee',(req,res,next)=>{
     employeeController.deleteEmployee(req,res)
 })
 
+router.post('/createclient',(req,res,next)=>{
+    adminController.createClient(req,res)
+})
+
 export default router;
 
 
