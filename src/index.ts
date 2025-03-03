@@ -16,6 +16,12 @@ import { generateAccessToken, generateRefreshToken } from "./middleware/tokenMid
 
 
 const app=express()
+app.use(cors({
+  origin: '*',                // Allow all origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],  // Allow all common HTTP methods
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token', 'Origin', 'Accept'], // Common headers
+  credentials: true           // Allow cookies to be sent with requests
+}));
 db.connect()
 app.use(CookieParser())
 app.use(express.json()); // ✅ Parses JSON bodies
@@ -23,7 +29,7 @@ app.use(express.urlencoded({ extended: true })); // ✅ Parses URL-encoded bodie
 app.use('/api/admin',adminRouter)
 app.use('/api/auth',authRouter)
 app.use('/api/employee',employeerouter)
-app.use(cors());
+
 
 const PORT=process.env.PORT||3000;
 console.log(PORT)
