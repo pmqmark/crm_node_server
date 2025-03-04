@@ -9,6 +9,7 @@ import Department from "../models/department";
 import { Client, IClient } from "../models/client";
 import Role from "../models/role";
 import { IRole } from "../dtos/roledto";
+import { Project } from "../models/projects";
 
 
 export class AdminController{
@@ -204,6 +205,23 @@ export class AdminController{
       return res.status(200).json({
         message: "clients retrieved successfully",
         data: clients
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error retrieving employees",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+
+  async listProjects(req: Request, res: Response): Promise<Response> {
+    try {
+      const projects = await Project.find();
+
+      return res.status(200).json({
+        message: "clients retrieved successfully",
+        data: projects
       });
     } catch (error) {
       return res.status(500).json({
