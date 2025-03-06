@@ -184,7 +184,6 @@ export class AdminController{
         });
       }
       
-      // Create permission with just a name (MongoDB will generate _id)
       const permission = new Permission({
         name: name.trim()
       });
