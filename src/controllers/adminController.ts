@@ -10,6 +10,7 @@ import { Client, IClient } from "../models/client";
 import Role from "../models/role";
 import { IRole } from "../dtos/roledto";
 import { Project } from "../models/projects";
+import mongoose, { Types } from "mongoose";
 
 
 export class AdminController{
@@ -196,6 +197,50 @@ export class AdminController{
     }
   }
 
+  async deleteDepartment(req: Request, res: Response): Promise<Response> {
+    try {
+      const { id } = req.body;
+  
+      if (!id || !Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          message: 'Valid department ID is required'
+        });
+      }
+  
+      // Check if department exists
+      const department = await Department.findById(id);
+      if (!department) {
+        return res.status(404).json({
+          message: `Department with ID ${id} not found`
+        });
+      }
+  
+      // Check if there are employees assigned to this department
+      const employeesCount = await Employee.countDocuments({ department_id: id });
+      
+      if (employeesCount > 0) {
+        return res.status(400).json({
+          message: 'Cannot delete department with assigned employees',
+          employeesCount: employeesCount,
+          solution: 'Reassign all employees to other departments before deletion'
+        });
+      }
+  
+      // Delete the department
+      const deletedDepartment = await Department.findByIdAndDelete(id);
+  
+      return res.status(200).json({
+        message: 'Department deleted successfully',
+        department: deletedDepartment
+      });
+  
+    } catch (error) {
+      return res.status(500).json({
+        message: 'Error deleting department',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
   
 
   async listClients(req: Request, res: Response): Promise<Response> {

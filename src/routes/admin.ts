@@ -4,10 +4,12 @@ import {  authMiddleware } from '../middleware/verifyToken';
 import {AdminController} from "../controllers/adminController"
 import {DepartmentController} from "../controllers/departmentcontroller"
 import { EmployeeController } from "../controllers/employeecontroller";
+import { ClientController } from "../controllers/clientcontroller";
 const router =Router();
 const adminController = new AdminController();
 const departmentcontroller = new DepartmentController(); 
 const employeeController = new EmployeeController()
+const clientController = new ClientController();
 router.use(authMiddleware)
 router.use(roleGuard(["Admin"]))
 router.post('/createadmin',(req,res,next)=>{
@@ -31,6 +33,9 @@ router.put('/updatedepartment',(req,res,next)=>{
     departmentcontroller.updateDepartment(req,res)
 });
 
+router.delete('/deletedepartment', (req, res, next) => {
+    adminController.deleteDepartment(req, res);
+  });
 router.get('/getdepartments',(req,res,next)=>{
     departmentcontroller.listDepartments(req,res)
 });
@@ -55,6 +60,9 @@ router.post('/createclient',(req,res,next)=>{
     adminController.createClient(req,res)
 })
 
+router.put('/updateclient',(req,res,next)=>{
+    clientController.updateClient(req, res);
+})
 
 router.post('/add-project',(req,res,next)=>{
     departmentcontroller.createProject(req,res)
