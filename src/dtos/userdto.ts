@@ -64,4 +64,12 @@ export interface IClient extends IUser {
   description:string;
 }
 
+export interface ClientUpdateFields {
+  [key: string]: any;
+  companyName?: string;
+  contactPerson?: string;
+  phone?: string;
+  address?: string;
+  description?: string;
+}
 

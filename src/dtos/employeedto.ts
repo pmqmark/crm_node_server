@@ -22,12 +22,13 @@ export interface CreateEmployeeDto {
 }
 
 export interface EmployeeUpdateFields {
+  [key: string]: any;
   employee_id?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
-  email?: string;
-  password?: string;
+  department_id?: Types.ObjectId;
+  role_id?: Types.ObjectId;
   hireDate?: Date;
   dob?: Date;
   addressline1?: string;
@@ -37,6 +38,4 @@ export interface EmployeeUpdateFields {
   country?: string;
   postalcode?: string;
   employeebio?: string;
-  department_id?: Types.ObjectId;
-  role_id?: Types.ObjectId;
 }

@@ -20,10 +20,14 @@ export class EmployeeController {
     try {
       const updateData: EmployeeUpdateFields = req.body;
       
-      if (updateData.employee_id === undefined) {
-        throw new Error('employee_id has to be provided');
+      // Validate if employee_id is provided
+      if (!updateData.employee_id) {
+        return res.status(400).json({
+          message: 'employee_id is required'
+        });
       }
       
+      // Check if employee exists
       const existingEmployee = await Employee.findOne({
         employee_id: updateData.employee_id
       });
@@ -36,61 +40,35 @@ export class EmployeeController {
       
       const updateFields: EmployeeUpdateFields = {};
       
-      // Map all fields from the UpdateEmployeeDto to the updateFields object
-      if (updateData.employee_id !== undefined) {
-        updateFields.employee_id = updateData.employee_id;
-      }
-      if (updateData.firstName !== undefined) {
-        updateFields.firstName = updateData.firstName;
-      }
-      if (updateData.lastName !== undefined) {
-        updateFields.lastName = updateData.lastName;
-      }
-      if (updateData.phone !== undefined) {
-        updateFields.phone = updateData.phone;
-      }
-      if (updateData.email !== undefined) {
-        updateFields.email = updateData.email;
-      }
-      if (updateData.password !== undefined) {
-        updateFields.password = updateData.password;
-      }
-      if (updateData.hireDate !== undefined) {
-        updateFields.hireDate = updateData.hireDate;
-      }
-      
-      // Add the missing fields from the IEmployee interface
-      if (updateData.dob !== undefined) {
-        updateFields.dob = updateData.dob;
-      }
-      if (updateData.addressline1 !== undefined) {
-        updateFields.addressline1 = updateData.addressline1;
-      }
-      if (updateData.addressline2 !== undefined) {
-        updateFields.addressline2 = updateData.addressline2;
-      }
-      if (updateData.city !== undefined) {
-        updateFields.city = updateData.city;
-      }
-      if (updateData.state !== undefined) {
-        updateFields.state = updateData.state;
-      }
-      if (updateData.country !== undefined) {
-        updateFields.country = updateData.country;
-      }
-      if (updateData.postalcode !== undefined) {
-        updateFields.postalcode = updateData.postalcode;
-      }
-      if (updateData.employeebio !== undefined) {
-        updateFields.employeebio = updateData.employeebio;
-      }
-      
-      // Handle references to other collections
-      if (updateData.department_id !== undefined) {
+      // Map all required fields from the model
+      const fields = [
+        'employee_id',
+        'firstName',
+        'lastName',
+        'phone',
+        'hireDate',
+        'dob',
+        'addressline1',
+        'addressline2',
+        'city',
+        'state',
+        'country',
+        'postalcode',
+        'employeebio'
+      ];
+  
+      fields.forEach(field => {
+        if (updateData[field] !== undefined) {
+          updateFields[field] = updateData[field];
+        }
+      });
+  
+      // Handle optional reference fields
+      if (updateData.department_id) {
         if (!Types.ObjectId.isValid(updateData.department_id)) {
-          throw new Error(
-            `Invalid department_id format: ${updateData.department_id}`
-          );
+          return res.status(400).json({
+            message: `Invalid department_id format: ${updateData.department_id}`
+          });
         }
         
         const departmentExists = await Department.exists({
@@ -98,18 +76,18 @@ export class EmployeeController {
         });
         
         if (!departmentExists) {
-          throw new Error(
-            `Department with ID ${updateData.department_id} not found`
-          );
+          return res.status(404).json({
+            message: `Department with ID ${updateData.department_id} not found`
+          });
         }
         updateFields.department_id = new Types.ObjectId(updateData.department_id);
       }
       
-      if (updateData.role_id !== undefined) {
+      if (updateData.role_id) {
         if (!Types.ObjectId.isValid(updateData.role_id)) {
-          throw new Error(
-            `Invalid role_id format: ${updateData.role_id}`
-          );
+          return res.status(400).json({
+            message: `Invalid role_id format: ${updateData.role_id}`
+          });
         }
         
         const roleExists = await Role.exists({
@@ -117,13 +95,14 @@ export class EmployeeController {
         });
         
         if (!roleExists) {
-          throw new Error(
-            `Role with ID ${updateData.role_id} not found`
-          );
+          return res.status(404).json({
+            message: `Role with ID ${updateData.role_id} not found`
+          });
         }
         updateFields.role_id = new Types.ObjectId(updateData.role_id);
       }
       
+      // Update the employee without populate
       const updatedEmployee = await Employee.findOneAndUpdate(
         { employee_id: updateData.employee_id },
         { $set: updateFields },

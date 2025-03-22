@@ -231,6 +231,22 @@ export class AdminController{
     }
   }
 
+  async listRoles(req: Request, res: Response): Promise<Response> {
+    try {
+      const roles = await Role.find();
+
+      return res.status(200).json({
+        message: "clients retrieved successfully",
+        data: roles
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error retrieving employees",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
 }
 
 
