@@ -77,6 +77,8 @@ router.post('/create-role',(req,res,next)=>{
     adminController.createRoles(req,res)
 })
 
+
+
 router.get('/list-role',(req,res,next)=>{
     adminController.listRoles(req,res)
 })
@@ -85,6 +87,21 @@ router.get('/list-project',(req,res,next)=>{
     
     adminController.listProjects(req,res)
 })
+
+
+router.get('/get-attendence',(req,res,next)=>{
+    
+    adminController.getAttendanceLogs(req,res)
+})
+
+router.get('/leaves', (req, res, next) => {
+    adminController.getAllLeaves(req, res);
+});
+
+router.post('/update-leave',(req,res,next)=>{ 
+        adminController.updateLeaveStatus(req,res)
+})
+
 export default router;
 
 

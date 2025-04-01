@@ -15,6 +15,33 @@ router.get("/",(req,res,next)=>{
 })
 
 
+router.get("/check-in",(req,res)=>{
+    employeeController.checkIn(req,res)
+})
+
+
+router.get("/check-out",(req,res)=>{
+    employeeController.checkOut(req,res)
+})
+
+
+router.post("/appy-leave",(req,res)=>{
+    employeeController.applyLeave(req,res);
+})
+
+router.get("/my-projects",(req,res)=>{
+    employeeController.getAssignedProjects(req,res);
+})
+
+router.post("/assign-task",(req,res)=>{
+    employeeController.assignTask(req,res);
+})
+
+
+router.get("/punch-status", (req,res)=>{
+    employeeController.checkPunchStatus(req,res)
+});
+
 
 
 export default router;

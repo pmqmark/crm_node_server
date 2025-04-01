@@ -6,6 +6,10 @@ import Department from "../models/department";
 import Role from '../models/role';
 import { IEmployee, User } from '../dtos/userdto';
 import { EmployeeUpdateFields } from '../dtos/employeedto';
+import AttendanceLog from '../models/logs';
+import Leave, { LeaveType } from '../models/leave';
+import { Project } from '../models/projects';
+import Task from '../models/tasks';
 
 
 export interface AuthRequest extends Request {
@@ -254,6 +258,472 @@ export class EmployeeController {
   }
 
 
+  async applyLeave(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({
+                message: "Unauthorized: User ID is missing"
+            });
+        }
+
+        const { 
+            leaveType, 
+            fromDate, 
+            toDate, 
+            reason 
+        } = req.body;
+
+        // Validate required fields
+        if (!leaveType || !fromDate || !toDate || !reason) {
+            return res.status(400).json({
+                message: "Missing required fields: leaveType, fromDate, toDate, and reason are required"
+            });
+        }
+
+        // Validate leave type
+        if (!Object.values(LeaveType).includes(leaveType)) {
+            return res.status(400).json({
+                message: "Invalid leave type. Must be one of: Medical Leave, Casual Leave, or Vacation"
+            });
+        }
+
+        // Convert dates
+        const startDate = new Date(fromDate);
+        const endDate = new Date(toDate);
+
+        // Validate dates
+        if (startDate > endDate) {
+            return res.status(400).json({
+                message: "End date must be after start date"
+            });
+        }
+
+        if (startDate < new Date()) {
+            return res.status(400).json({
+                message: "Cannot apply leave for past dates"
+            });
+        }
+
+        // Calculate number of days
+        const timeDiff = endDate.getTime() - startDate.getTime();
+        const numberOfDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+
+        // Check for existing leave in date range
+        const existingLeave = await Leave.findOne({
+            employee_id: req.user.id,
+            $or: [
+                {
+                    fromDate: { $lte: endDate },
+                    toDate: { $gte: startDate }
+                }
+            ]
+        });
+
+        if (existingLeave) {
+            return res.status(400).json({
+                message: "You already have a leave request for these dates"
+            });
+        }
+
+        // Create leave request
+        const leave = await Leave.create({
+            employee_id: req.user.id,
+            leaveType,
+            fromDate: startDate,
+            toDate: endDate,
+            numberOfDays,
+            reason,
+            status: 'Pending'
+        });
+
+        return res.status(201).json({
+            message: "Leave application submitted successfully",
+            data: leave
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "Error applying for leave",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+}
+
+//   async checkIn(req: AuthRequest, res: Response): Promise<Response> {
+//     try {
+//         if (!req.user || !req.user.id) {
+//             return res.status(401).json({
+//                 message: "Unauthorized: User ID is missing"
+//             });
+//         }
+
+//         const employee_id = req.user.id;
+//         const currentDate = new Date();
+//         currentDate.setHours(0, 0, 0, 0); // Reset time to start of day
+
+//         // Check if attendance record already exists for today
+//         const existingLog = await AttendanceLog.findOne({
+//             employee_id,
+//             date: {
+//                 $gte: currentDate,
+//                 $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000)
+//             }
+//         });
+
+//         if (existingLog) {
+//             if (existingLog.punchOut === null) {
+//                 return res.status(400).json({
+//                     message: "You are already checked in for today"
+//                 });
+//             }
+//             return res.status(400).json({
+//                 message: "You have already completed your attendance for today"
+//             });
+//         }
+
+//         // Create new attendance log
+//         const attendanceLog = await AttendanceLog.create({
+//             employee_id,
+//             date: new Date(),
+//             punchIn: new Date(),
+//             status: 'Present'
+//         });
+
+//         return res.status(201).json({
+//             message: "Check-in successful",
+//             data: attendanceLog
+//         });
+
+//     } catch (error) {
+//         return res.status(500).json({
+//             message: "Error during check-in",
+//             error: error instanceof Error ? error.message : "Unknown error"
+//         });
+//     }
+// }
+
+
+
+// async checkOut(req: AuthRequest, res: Response): Promise<Response> {
+//   try {
+//       if (!req.user || !req.user.id) {
+//           return res.status(401).json({
+//               message: "Unauthorized: User ID is missing"
+//           });
+//       }
+
+//       const employee_id = req.user.id;
+//       const currentDate = new Date();
+//       currentDate.setHours(0, 0, 0, 0);
+
+//       // Find today's attendance record
+//       const attendanceLog = await AttendanceLog.findOne({
+//           employee_id,
+//           date: {
+//               $gte: currentDate,
+//               $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000)
+//           }
+//       });
+
+//       if (!attendanceLog) {
+//           return res.status(404).json({
+//               message: "No check-in record found for today"
+//           });
+//       }
+
+//       if (attendanceLog.punchOut !== null) {
+//           return res.status(400).json({
+//               message: "You have already checked out for today"
+//           });
+//       }
+
+//       // Update punch-out time
+//       attendanceLog.punchOut = new Date();
+//       await attendanceLog.save(); // This will trigger the pre-save hook to calculate hours
+
+//       return res.status(200).json({
+//           message: "Check-out successful",
+//           data: attendanceLog
+//       });
+
+//   } catch (error) {
+//       return res.status(500).json({
+//           message: "Error during check-out",
+//           error: error instanceof Error ? error.message : "Unknown error"
+//       });
+//   }
+// }
+
+
+async checkIn(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+      if (!req.user || !req.user.id) {
+          return res.status(401).json({
+              message: "Unauthorized: User ID is missing"
+          });
+      }
+
+      const employee_id = req.user.id;
+
+      // Check only if user has an active session (not checked out)
+      const activeSession = await AttendanceLog.findOne({
+          employee_id,
+          punchOut: null
+      });
+
+      if (activeSession) {
+          return res.status(400).json({
+              message: "You have an active session. Please check out first"
+          });
+      }
+
+      // Create new attendance log
+      const attendanceLog = await AttendanceLog.create({
+          employee_id,
+          date: new Date(),
+          punchIn: new Date(),
+          status: 'Present'
+      });
+
+      return res.status(201).json({
+          message: "Check-in successful",
+          data: attendanceLog
+      });
+
+  } catch (error) {
+      return res.status(500).json({
+          message: "Error during check-in",
+          error: error instanceof Error ? error.message : "Unknown error"
+      });
+  }
+}
+
+
+async checkPunchStatus(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+      if (!req.user || !req.user.id) {
+          return res.status(401).json({
+              message: "Unauthorized: User ID is missing"
+          });
+      }
+
+      const employee_id = req.user.id;
+
+      // Find the most recent attendance log
+      const latestLog = await AttendanceLog.findOne({
+          employee_id
+      })
+      .sort({ date: -1, punchIn: -1 })
+      .select('date punchIn punchOut status');
+
+      if (!latestLog) {
+          return res.status(200).json({
+              message: "No attendance records found",
+              data: {
+                  isPunchedIn: false,
+                  lastActivity: null
+              }
+          });
+      }
+
+      // Check if there's an active session (no punch out)
+      const isPunchedIn = latestLog.punchOut === null;
+
+      return res.status(200).json({
+          message: "Punch status retrieved successfully",
+          data: {
+              isPunchedIn,
+              lastActivity: {
+                  date: latestLog.date,
+                  punchIn: latestLog.punchIn,
+                  punchOut: latestLog.punchOut,
+                  status: latestLog.status
+              }
+          }
+      });
+
+  } catch (error) {
+      return res.status(500).json({
+          message: "Error checking punch status",
+          error: error instanceof Error ? error.message : "Unknown error"
+      });
+  }
+}
+
+async getAssignedProjects(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        message: "Unauthorized: User ID is missing"
+      });
+    }
+
+    const employeeId = req.user.id;
+    
+    const assignedProjects = await Project.find({
+      $or: [
+        { teamMembers: employeeId },
+        { teamLeaders: employeeId },
+        { managers: employeeId }
+      ]
+    })
+    .populate<{ teamLeaders: IEmployee[] }>({
+      path: 'teamLeaders',
+      model: 'Employee',
+      select: 'firstName lastName employee_id',
+      options: { limit: 1 }
+    })
+    .select('projectName startDate endDate teamLeaders status')
+    .sort({ startDate: 1 });
+
+    const simplifiedProjects = assignedProjects.map(project => {
+      const leader = project.teamLeaders?.[0];
+      return {
+        projectName: project.projectName,
+        startDate: project.startDate,
+        endDate: project.endDate,
+        status: project.status,
+        teamLead: leader ? {
+          name: `${leader.firstName} ${leader.lastName}`,
+          employeeId: leader.employee_id
+        } : {
+          name: 'No Lead Assigned', 
+          employeeId: null
+        }
+      };
+    });
+
+    return res.status(200).json({
+      message: "Projects retrieved successfully",
+      count: simplifiedProjects.length,
+      data: simplifiedProjects
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error retrieving assigned projects", 
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+async assignTask(req: Request, res: Response): Promise<Response> {
+  try {
+      const { 
+          project_id, 
+          assigned_employees, // Array of employee _ids
+          description, 
+          status = 'Pending' 
+      } = req.body;
+
+      // Validate required fields
+      if (!project_id || !Array.isArray(assigned_employees) || !description) {
+          return res.status(400).json({
+              message: "Project ID, assigned employees array, and description are required"
+          });
+      }
+
+      // Validate project exists
+      const project = await Project.findById(project_id);
+      if (!project) {
+          return res.status(404).json({
+              message: "Project not found"
+          });
+      }
+
+      // Validate all employee IDs are valid ObjectIds
+      const validObjectIds = assigned_employees.every(id => Types.ObjectId.isValid(id));
+      if (!validObjectIds) {
+          return res.status(400).json({
+              message: "One or more employee IDs are not valid ObjectIds"
+          });
+      }
+
+      // Validate employees exist using _id
+      const validEmployees = await Employee.find({
+          _id: { $in: assigned_employees.map(id => new Types.ObjectId(id)) }
+      }).select('_id firstName lastName');
+
+      if (validEmployees.length !== assigned_employees.length) {
+          const foundIds = validEmployees.map(emp => emp._id.toString());
+          const invalidIds = assigned_employees.filter(id => !foundIds.includes(id));
+          
+          return res.status(400).json({
+              message: "Some employee IDs are invalid",
+              invalidEmployees: invalidIds
+          });
+      }
+
+      // Create new task
+      const task = new Task({
+          project_id,
+          assigned_employees,
+          description,
+          status
+      });
+
+      const savedTask = await task.save();
+
+      // Return response with employee details
+      return res.status(201).json({
+          message: "Task assigned successfully",
+          data: {
+              ...savedTask.toObject(),
+              assignedEmployeeDetails: validEmployees.map(emp => ({
+                  _id: emp._id,
+                  name: `${emp.firstName} ${emp.lastName}`
+              }))
+          }
+      });
+
+  } catch (error) {
+      return res.status(500).json({
+          message: "Error assigning task",
+          error: error instanceof Error ? error.message : "Unknown error"
+      });
+  }
+}
+
+async checkOut(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+      if (!req.user || !req.user.id) {
+          return res.status(401).json({
+              message: "Unauthorized: User ID is missing"
+          });
+      }
+
+      const employee_id = req.user.id;
+
+      // Find active session
+      const activeSession = await AttendanceLog.findOne({
+          employee_id,
+          punchOut: null
+      });
+
+      if (!activeSession) {
+          return res.status(404).json({
+              message: "No active session found. Please check in first"
+          });
+      }
+
+      // Update punch-out time
+      activeSession.punchOut = new Date();
+      await activeSession.save(); // This will trigger the pre-save hook to calculate hours
+
+      return res.status(200).json({
+          message: "Check-out successful",
+          data: activeSession
+      });
+
+  } catch (error) {
+      return res.status(500).json({
+          message: "Error during check-out",
+          error: error instanceof Error ? error.message : "Unknown error"
+      });
+  }
+}
+
+
   async findEmployee(req: AuthRequest, res: Response): Promise<Response> {
     try {
       
@@ -262,6 +732,8 @@ export class EmployeeController {
           message: "Unauthorized: User ID is missing"
         });
       }
+
+      console.log(req.user)
   
       const userId = req.user.id; 
   
