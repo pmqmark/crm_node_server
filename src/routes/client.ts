@@ -27,4 +27,9 @@ router.delete('/delete-ticket', (req, res) => {
   clientController.deleteTicket(req, res);
 });
 
+
+router.get('/projects', (req, res) => {
+  clientController.getClientProjects(req, res);
+});
+
 export default router;

@@ -8,6 +8,7 @@ import { EmployeeUpdateFields } from '../dtos/employeedto';
 import { ClientUpdateFields } from '../dtos/userdto';
 import { Client } from '../models/client';
 import Ticket from '../models/ticket';
+import { Project } from '../models/projects';
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -291,6 +292,167 @@ export class ClientController {
         return res.status(500).json({
           success: false,
           message: "Error deleting ticket",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+
+    async getClientProjects(req: AuthRequest, res: Response): Promise<Response> {
+      try {
+        if (!req.user || !req.user.id) {
+          return res.status(401).json({
+            success: false,
+            message: "User not authenticated"
+          });
+        }
+    
+        const clientId = req.user.id;
+        const { status } = req.query;
+        
+        // Build query - find projects assigned to this client
+        const query: any = { client: new Types.ObjectId(clientId) };
+        
+        // Add status filter if provided
+        if (status) {
+          if (!['Not Started', 'In Progress', 'Completed', 'On Hold'].includes(status as string)) {
+            return res.status(400).json({
+              success: false,
+              message: "Invalid status value. Must be 'Not Started', 'In Progress', 'Completed', or 'On Hold'"
+            });
+          }
+          query.status = status;
+        }
+    
+        // Find projects
+        const projects = await Project.find(query)
+          .sort({ startDate: 1 }) // Sort by start date (ascending)
+          .populate('teamLeaders', 'firstName lastName employee_id')
+          .populate('teamMembers', 'firstName lastName employee_id')
+          .populate('managers', 'firstName lastName employee_id')
+          .populate('created_by', 'firstName lastName employee_id')
+          .lean();
+    
+        // Calculate summary statistics
+        const total = projects.length;
+        const completed = projects.filter(project => project.status === 'Completed').length;
+        const inProgress = projects.filter(project => project.status === 'In Progress').length;
+        const notStarted = projects.filter(project => project.status === 'Not Started').length;
+        const onHold = projects.filter(project => project.status === 'On Hold').length;
+        const highPriority = projects.filter(project => project.priority === 'High').length;
+        
+        // Calculate completion percentage
+        const completionPercentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+        
+        // Calculate overall progress including in-progress projects (weighted calculation)
+        let overallProgress = 0;
+        if (total > 0) {
+          // Assign weights: Completed = 100%, In Progress = 50%, Not Started = 0%, On Hold = counted but no progress
+          overallProgress = Math.round(
+            ((completed * 100) + (inProgress * 50)) / total
+          );
+        }
+        
+        const summary = {
+          total,
+          completed,
+          notStarted,
+          inProgress,
+          onHold,
+          highPriority,
+          completionPercentage,
+          overallProgress
+        };
+    
+        // Format projects for response
+        const formattedProjects = projects.map(project => {
+          // Add type assertion for teamLeaders
+          const teamLeadersArray = project.teamLeaders as unknown as Array<{
+            firstName: string;
+            lastName: string;
+            employee_id: string;
+          }>;
+          
+          const teamLeader = teamLeadersArray && teamLeadersArray.length > 0 
+            ? `${teamLeadersArray[0].firstName} ${teamLeadersArray[0].lastName}` 
+            : 'Not assigned';
+          
+          const daysToStart = project.status === 'Not Started' ? 
+            Math.ceil((new Date(project.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
+          
+          const daysRemaining = project.status !== 'Completed' ? 
+            Math.ceil((new Date(project.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
+          
+          // Calculate individual project progress percentage
+          let progressPercentage = 0;
+          switch(project.status) {
+            case 'Completed':
+              progressPercentage = 100;
+              break;
+            case 'In Progress':
+              // Calculate based on timeline - if halfway through timeline, assume 50% complete
+              const totalDuration = new Date(project.endDate).getTime() - new Date(project.startDate).getTime();
+              const elapsedDuration = new Date().getTime() - new Date(project.startDate).getTime();
+              
+              if (totalDuration > 0) {
+                progressPercentage = Math.min(
+                  Math.round((elapsedDuration / totalDuration) * 100),
+                  99 // Cap at 99% for in-progress projects
+                );
+                // Minimum 10% for just started projects
+                progressPercentage = Math.max(progressPercentage, 10);
+              }
+              break;
+            case 'Not Started':
+              progressPercentage = 0;
+              break;
+            case 'On Hold':
+              // For on hold, show the progress at the time it was paused (estimate)
+              const totalDays = (new Date(project.endDate).getTime() - new Date(project.startDate).getTime()) / (1000 * 60 * 60 * 24);
+              const elapsedDays = (new Date().getTime() - new Date(project.startDate).getTime()) / (1000 * 60 * 60 * 24);
+              
+              if (totalDays > 0) {
+                progressPercentage = Math.min(
+                  Math.round((elapsedDays / totalDays) * 100 * 0.5), // Only count 50% of elapsed time for on-hold
+                  75 // Cap at 75% for on-hold projects
+                );
+              }
+              break;
+          }
+          
+          return {
+            id: project._id,
+            projectName: project.projectName,
+            description: project.projectDescription,
+            startDate: project.startDate,
+            endDate: project.endDate,
+            status: project.status,
+            priority: project.priority,
+            teamSize: (project.teamMembers?.length || 0) + (project.teamLeaders?.length || 0),
+            leadContact: teamLeader,
+            progressPercentage,
+            timeframe: {
+              daysToStart: daysToStart > 0 ? daysToStart : 0,
+              daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
+              isOverdue: project.status !== 'Completed' && new Date(project.endDate) < new Date()
+            },
+            tags: project.tags || [],
+            value: project.projectValue
+          };
+        });
+    
+        return res.status(200).json({
+          success: true,
+          message: "Projects retrieved successfully",
+          summary,
+          projects: formattedProjects
+        });
+    
+      } catch (error) {
+        console.error('Error retrieving projects:', error);
+    
+        return res.status(500).json({
+          success: false,
+          message: "Error retrieving projects",
           error: error instanceof Error ? error.message : "Unknown error"
         });
       }
