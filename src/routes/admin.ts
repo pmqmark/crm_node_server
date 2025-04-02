@@ -102,6 +102,18 @@ router.post('/update-leave',(req,res,next)=>{
         adminController.updateLeaveStatus(req,res)
 })
 
+router.get('/tickets', (req, res) => {
+  adminController.getTickets(req, res);
+});
+
+router.put('/update-ticket', (req, res) => {
+  adminController.updateTicket(req, res);
+});
+
+router.delete('/delete-ticket', (req, res) => {
+  adminController.deleteTicket(req, res);
+});
+
 export default router;
 
 

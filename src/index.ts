@@ -12,6 +12,7 @@ dotenv.config({
 import  adminRouter from "./routes/admin";
 import authRouter from "./routes/auth"
 import employeerouter from "./routes/employee"
+import clientRouter from "./routes/client";
 import { generateAccessToken, generateRefreshToken } from "./middleware/tokenMiddleware";
 
 
@@ -29,6 +30,7 @@ app.use(express.urlencoded({ extended: true })); // ✅ Parses URL-encoded bodie
 app.use('/api/admin',adminRouter)
 app.use('/api/auth',authRouter)
 app.use('/api/employee',employeerouter)
+app.use('/api/client', clientRouter)
 
 
 const PORT=process.env.PORT||3000;

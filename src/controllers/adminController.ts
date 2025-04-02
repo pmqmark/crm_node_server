@@ -13,7 +13,7 @@ import { Project } from "../models/projects";
 import mongoose, { Types } from "mongoose";
 import AttendanceLog from "../models/logs";
 import Leave, { LeaveType } from "../models/leave";
-
+import Ticket from '../models/ticket';
 
 async function generateEmployeeId(): Promise<string> {
   const prefix = 'QMARK';
@@ -567,6 +567,232 @@ export class AdminController{
             error: error instanceof Error ? error.message : "Unknown error"
         });
     }
+}
+
+async getTickets(req: Request, res: Response): Promise<Response> {
+  try {
+    const { status, priority, clientId, ticketCode } = req.query;
+    
+    // Build query
+    const query: any = {};
+    
+    // Filter by status if provided
+    if (status) {
+      if (!['Pending', 'In Progress', 'Resolved', 'Closed'].includes(status as string)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid status value"
+        });
+      }
+      query.status = status;
+    }
+    
+    // Filter by priority if provided
+    if (priority) {
+      if (!['Low', 'Medium', 'High'].includes(priority as string)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid priority value"
+        });
+      }
+      query.priority = priority;
+    }
+    
+    // Filter by client if provided
+    if (clientId && Types.ObjectId.isValid(clientId as string)) {
+      query.client_id = new Types.ObjectId(clientId as string);
+    }
+    
+    // Filter by ticketCode if provided
+    if (ticketCode) {
+      query.ticketCode = ticketCode;
+    }
+    
+    const tickets = await Ticket.find(query)
+      .sort({ createdAt: -1 })
+      .populate('client_id', 'companyName contactPerson email')
+      .populate('assignedTo', 'firstName lastName employee_id')
+      .lean();
+    
+    // Calculate statistics
+    const summary = {
+      total: tickets.length,
+      pending: tickets.filter(ticket => ticket.status === 'Pending').length,
+      inProgress: tickets.filter(ticket => ticket.status === 'In Progress').length,
+      resolved: tickets.filter(ticket => ticket.status === 'Resolved').length,
+      closed: tickets.filter(ticket => ticket.status === 'Closed').length,
+      highPriority: tickets.filter(ticket => ticket.priority === 'High').length
+    };
+    
+    return res.status(200).json({
+      success: true,
+      message: "Tickets retrieved successfully",
+      summary,
+      tickets
+    });
+    
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving tickets",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+async updateTicket(req: Request, res: Response): Promise<Response> {
+  try {
+    const { id, ticketCode, status, priority, assignedTo, comments } = req.body;
+    
+    // Validate we have either id or ticketCode
+    if (!id && !ticketCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Either ticket ID or ticketCode is required"
+      });
+    }
+    
+    // Find ticket
+    let ticket;
+    if (id && Types.ObjectId.isValid(id)) {
+      ticket = await Ticket.findById(id);
+    } else if (ticketCode) {
+      ticket = await Ticket.findOne({ ticketCode });
+    }
+    
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
+    }
+    
+    // Build update object
+    const updateData: any = {};
+    
+    // Update status if provided
+    if (status) {
+      if (!['Pending', 'In Progress', 'Resolved', 'Closed'].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid status value"
+        });
+      }
+      updateData.status = status;
+    }
+    
+    // Update priority if provided
+    if (priority) {
+      if (!['Low', 'Medium', 'High'].includes(priority)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid priority value"
+        });
+      }
+      updateData.priority = priority;
+    }
+    
+    // Update assignedTo if provided
+    if (assignedTo) {
+      if (!Types.ObjectId.isValid(assignedTo)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid employee ID for assignment"
+        });
+      }
+      
+      // Verify the employee exists
+      const employee = await Employee.findById(assignedTo);
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          message: "Employee not found for assignment"
+        });
+      }
+      
+      updateData.assignedTo = assignedTo;
+    }
+    
+    // Add comment if provided
+    if (comments) {
+      // We need a valid admin id from the request user
+      ticket.comments = ticket.comments || [];
+      ticket.comments.push({
+        text: comments,
+        createdBy: new Types.ObjectId(req.body.adminId), // Assuming the admin ID is sent in the request
+        createdAt: new Date()
+      });
+    }
+    
+    // Apply updates to the ticket
+    Object.assign(ticket, updateData);
+    
+    // Save the ticket
+    const updatedTicket = await ticket.save();
+    
+    // Get populated data for response
+    const populatedTicket = await Ticket.findById(updatedTicket._id)
+      .populate('client_id', 'companyName contactPerson email')
+      .populate('assignedTo', 'firstName lastName employee_id')
+      .lean();
+    
+    return res.status(200).json({
+      success: true,
+      message: "Ticket updated successfully",
+      ticket: populatedTicket
+    });
+    
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error updating ticket",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+async deleteTicket(req: Request, res: Response): Promise<Response> {
+  try {
+    const { id, ticketCode } = req.body;
+    
+    // Validate we have either id or ticketCode
+    if (!id && !ticketCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Either ticket ID or ticketCode is required"
+      });
+    }
+    
+    // Find ticket
+    let ticket;
+    if (id && Types.ObjectId.isValid(id)) {
+      ticket = await Ticket.findById(id);
+    } else if (ticketCode) {
+      ticket = await Ticket.findOne({ ticketCode });
+    }
+    
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
+    }
+    
+    // Delete the ticket
+    await Ticket.findByIdAndDelete(ticket._id);
+    
+    return res.status(200).json({
+      success: true,
+      message: `Ticket ${ticketCode || id} deleted successfully`
+    });
+    
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Error deleting ticket",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
 }
 
 }
