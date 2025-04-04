@@ -26,17 +26,26 @@ async function generateEmployeeId(): Promise<string> {
   let newNumber: number;
   
   if (highestEmployee && highestEmployee.employee_id) {
-      // Extract the number from existing highest ID (e.g., 'QMARK1004' -> 1004)
-      const currentNumber = parseInt(highestEmployee.employee_id.replace(prefix, ''));
-      newNumber = currentNumber + 1;
+      // Extract the number part using regex to ensure we get only digits
+      const matches = highestEmployee.employee_id.match(/\d+/);
+      if (matches && matches[0]) {
+          const currentNumber = parseInt(matches[0]);
+          if (!isNaN(currentNumber)) {
+              newNumber = currentNumber + 1;
+          } else {
+              newNumber = 1000; // Fallback if parsing fails
+          }
+      } else {
+          newNumber = 1000; // Fallback if no numbers found
+      }
   } else {
       // Start from 1000 if no employees exist
       newNumber = 1000;
   }
   
-  return `${prefix}${newNumber}`;
+  // Ensure the number is at least 4 digits
+  return `${prefix}${newNumber.toString().padStart(4, '0')}`;
 }
-
 export class AdminController{
     async createAdmin (req: Request, res: Response): Promise<Response>{
         try {

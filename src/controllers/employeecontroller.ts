@@ -16,6 +16,19 @@ export interface AuthRequest extends Request {
   user?: User;
 }
 
+interface IPopulatedProject {
+  _id: Types.ObjectId;
+  projectName: string;
+}
+
+interface ITaskWithProject extends Document {
+  _id: Types.ObjectId;
+  project_id: IPopulatedProject;
+  description: string;
+  status: string;
+  createdAt: Date;
+}
+
 
 
 export class EmployeeController {
@@ -550,6 +563,57 @@ async checkPunchStatus(req: AuthRequest, res: Response): Promise<Response> {
   }
 }
 
+
+
+async getMyTasks(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+      if (!req.user || !req.user.id) {
+          return res.status(401).json({
+              message: "Unauthorized: User ID is missing"
+          });
+      }
+
+      const { status } = req.query;
+      const query: any = {
+          assigned_employees: req.user.id
+      };
+
+      if (status && ['Pending', 'In Progress', 'Completed', 'On Hold'].includes(status as string)) {
+          query.status = status;
+      }
+
+      const tasks = await Task.find(query)
+          .populate<{ project_id: IPopulatedProject }>('project_id', 'projectName')
+          .sort({ createdAt: -1 });
+
+      if (tasks.length === 0) {
+          return res.status(200).json({
+              message: "No tasks found",
+              data: []
+          });
+      }
+
+      const enrichedTasks = tasks.map(task => ({
+          taskId: task._id,
+          description: task.description,
+          status: task.status,
+          projectName: task.project_id?.projectName || 'No Project',
+          createdAt: task.createdAt
+      }));
+
+      return res.status(200).json({
+          message: "Tasks retrieved successfully",
+          count: enrichedTasks.length,
+          data: enrichedTasks
+      });
+
+  } catch (error) {
+      return res.status(500).json({
+          message: "Error retrieving tasks",
+          error: error instanceof Error ? error.message : "Unknown error"
+      });
+  }
+}
 async getAssignedProjects(req: AuthRequest, res: Response): Promise<Response> {
   try {
     if (!req.user || !req.user.id) {
@@ -607,8 +671,30 @@ async getAssignedProjects(req: AuthRequest, res: Response): Promise<Response> {
   }
 }
 
-async assignTask(req: Request, res: Response): Promise<Response> {
+async assignTask(req: AuthRequest, res: Response): Promise<Response> {
   try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+          message: "Unauthorized: User ID is missing"
+      });
+  }
+
+  // Check if user has permission to assign tasks
+  const assigningEmployee = await Employee.findById(req.user.id)
+      .select('role_id');
+
+  if (!assigningEmployee) {
+      return res.status(404).json({
+          message: "Employee not found"
+      });
+  }
+
+  // Check if employee has the restricted role
+  if (assigningEmployee.role_id?.toString() === '67eda86ae2b85e32ef56e328') {
+      return res.status(403).json({
+          message: "You don't have permission to assign tasks"
+      });
+  }
       const { 
           project_id, 
           assigned_employees, // Array of employee _ids

@@ -37,6 +37,13 @@ router.post("/assign-task",(req,res)=>{
     employeeController.assignTask(req,res);
 })
 
+router.get("/my-tasks",(req,res)=>{
+    employeeController.getMyTasks(req,res);
+})
+
+
+
+
 
 router.get("/punch-status", (req,res)=>{
     employeeController.checkPunchStatus(req,res)
