@@ -14,28 +14,9 @@ import mongoose, { Types } from "mongoose";
 import AttendanceLog from "../models/logs";
 import Leave, { LeaveType } from "../models/leave";
 import Ticket from '../models/ticket';
-
-async function generateEmployeeId(): Promise<string> {
-  const prefix = 'QMARK';
-  
-  // Get the highest existing employee ID number
-  const highestEmployee = await Employee.findOne({})
-      .sort({ employee_id: -1 })
-      .select('employee_id');
-  
-  let newNumber: number;
-  
-  if (highestEmployee && highestEmployee.employee_id) {
-      // Extract the number from existing highest ID (e.g., 'QMARK1004' -> 1004)
-      const currentNumber = parseInt(highestEmployee.employee_id.replace(prefix, ''));
-      newNumber = currentNumber + 1;
-  } else {
-      // Start from 1000 if no employees exist
-      newNumber = 1000;
-  }
-  
-  return `${prefix}${newNumber}`;
-}
+import Invoice from '../models/invoice';
+import { CreateInvoiceDto, UpdateInvoiceDto, GetInvoiceDto, DeleteInvoiceDto } from '../dtos/invoicedto';
+import { AuthRequest } from '../middleware/verifyToken';
 
 export class AdminController{
     async createAdmin (req: Request, res: Response): Promise<Response>{
@@ -291,12 +272,11 @@ export class AdminController{
       try {
         const employeeData: CreateEmployeeDto = req.body;
     
-        // Generate unique employee_id
-        const employee_id = await generateEmployeeId();
+        // No need to generate employee_id, it's handled by middleware
         const hashedPassword = await bcrypt.hash(employeeData.password, 10);
     
         const employee = new Employee({
-          employee_id, // Auto-generated ID
+          // employee_id is not needed here, it will be auto-generated
           firstName: employeeData.firstName,
           lastName: employeeData.lastName,
           email: employeeData.email,
@@ -790,6 +770,374 @@ async deleteTicket(req: Request, res: Response): Promise<Response> {
     return res.status(500).json({
       success: false,
       message: "Error deleting ticket",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+async createInvoice(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: Admin ID is missing"
+      });
+    }
+
+    const adminId = req.user.id;
+    const invoiceData: CreateInvoiceDto = req.body;
+
+    // Validate required fields
+    if (!invoiceData.client_id || !invoiceData.amount || !invoiceData.dueDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Client ID, amount, and due date are required"
+      });
+    }
+
+    // Validate client exists
+    if (!Types.ObjectId.isValid(invoiceData.client_id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid client ID format"
+      });
+    }
+
+    const client = await Client.findById(invoiceData.client_id);
+    if (!client) {
+      return res.status(400).json({
+        success: false,
+        message: "Client not found"
+      });
+    }
+
+    // Validate project if provided
+    if (invoiceData.project_id) {
+      if (!Types.ObjectId.isValid(invoiceData.project_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID format"
+        });
+      }
+
+      const project = await Project.findById(invoiceData.project_id);
+      if (!project) {
+        return res.status(400).json({
+          success: false,
+          message: "Project not found"
+        });
+      }
+    }
+
+    // Create invoice - will auto-generate invoice_id
+    const invoice = new Invoice({
+      client_id: new Types.ObjectId(invoiceData.client_id),
+      project_id: invoiceData.project_id ? new Types.ObjectId(invoiceData.project_id) : undefined,
+      amount: invoiceData.amount,
+      description: invoiceData.description,
+      invoiceDate: invoiceData.invoiceDate || new Date(),
+      dueDate: new Date(invoiceData.dueDate),
+      status: 'Pending',
+      createdBy: new Types.ObjectId(adminId)
+    });
+
+    const savedInvoice = await invoice.save();
+
+    // Populate for response
+    await savedInvoice.populate('client_id', 'companyName contactPerson email');
+    if (savedInvoice.project_id) {
+      await savedInvoice.populate('project_id', 'projectName');
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Invoice created successfully",
+      data: savedInvoice
+    });
+
+  } catch (error) {
+    console.error('Error creating invoice:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error creating invoice",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+async updateInvoice(req: Request, res: Response): Promise<Response> {
+  try {
+    const updateData: UpdateInvoiceDto = req.body;
+    
+    // Validate that we have at least one identifier
+    if (!updateData.id && !updateData.invoice_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Either id or invoice_id is required"
+      });
+    }
+    
+    // Find the invoice to update
+    let invoice;
+    if (updateData.id && Types.ObjectId.isValid(updateData.id)) {
+      invoice = await Invoice.findById(updateData.id);
+    } else if (updateData.invoice_id) {
+      invoice = await Invoice.findOne({ invoice_id: updateData.invoice_id });
+    }
+    
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found"
+      });
+    }
+    
+    // Updates to apply
+    const updates: any = {};
+    
+    // Update amount if provided
+    if (updateData.amount !== undefined) {
+      if (updateData.amount <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Amount must be greater than zero"
+        });
+      }
+      updates.amount = updateData.amount;
+    }
+    
+    // Update description if provided
+    if (updateData.description !== undefined) {
+      updates.description = updateData.description;
+    }
+    
+    // Update dueDate if provided
+    if (updateData.dueDate) {
+      updates.dueDate = new Date(updateData.dueDate);
+    }
+    
+    // Update status if provided
+    if (updateData.status) {
+      if (!['Pending', 'Paid', 'Overdue'].includes(updateData.status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'"
+        });
+      }
+      
+      updates.status = updateData.status;
+      
+      // If status is changed to Paid, set payment date
+      if (updateData.status === 'Paid' && !invoice.paymentDate) {
+        updates.paymentDate = updateData.paymentDate || new Date();
+      }
+    }
+    
+    // Apply updates
+    const updatedInvoice = await Invoice.findByIdAndUpdate(
+      invoice._id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    )
+    .populate('client_id', 'companyName contactPerson email')
+    .populate('project_id', 'projectName')
+    .populate('createdBy', 'username');
+    
+    return res.status(200).json({
+      success: true,
+      message: "Invoice updated successfully",
+      data: updatedInvoice
+    });
+    
+  } catch (error) {
+    console.error('Error updating invoice:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error updating invoice",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+async getInvoice(req: Request, res: Response): Promise<Response> {
+  try {
+    const invoiceData: GetInvoiceDto = req.body;
+    
+    // Validate that we have at least one identifier
+    if (!invoiceData.id && !invoiceData.invoice_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Either id or invoice_id is required"
+      });
+    }
+    
+    // Find the invoice
+    let invoice;
+    if (invoiceData.id && Types.ObjectId.isValid(invoiceData.id)) {
+      invoice = await Invoice.findById(invoiceData.id);
+    } else if (invoiceData.invoice_id) {
+      invoice = await Invoice.findOne({ invoice_id: invoiceData.invoice_id });
+    }
+    
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found"
+      });
+    }
+    
+    // Populate references
+    await invoice.populate('client_id', 'companyName contactPerson email');
+    if (invoice.project_id) {
+      await invoice.populate('project_id', 'projectName');
+    }
+    await invoice.populate('createdBy', 'username');
+    
+    return res.status(200).json({
+      success: true,
+      message: "Invoice retrieved successfully",
+      data: invoice
+    });
+    
+  } catch (error) {
+    console.error('Error retrieving invoice:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving invoice",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+async listInvoices(req: Request, res: Response): Promise<Response> {
+  try {
+    const { client_id, status, fromDate, toDate } = req.query;
+    
+    // Build query
+    const query: any = {};
+    
+    // Filter by client_id if provided
+    if (client_id && Types.ObjectId.isValid(client_id as string)) {
+      query.client_id = new Types.ObjectId(client_id as string);
+    }
+    
+    // Filter by status if provided
+    if (status) {
+      if (!['Pending', 'Paid', 'Overdue'].includes(status as string)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'"
+        });
+      }
+      query.status = status;
+    }
+    
+    // Filter by date range if provided
+    if (fromDate || toDate) {
+      query.invoiceDate = {};
+      if (fromDate) {
+        query.invoiceDate.$gte = new Date(fromDate as string);
+      }
+      if (toDate) {
+        query.invoiceDate.$lte = new Date(toDate as string);
+      }
+    }
+    
+    // Get invoices
+    const invoices = await Invoice.find(query)
+      .sort({ invoiceDate: -1 })
+      .populate('client_id', 'companyName contactPerson')
+      .populate('project_id', 'projectName')
+      .populate('createdBy', 'username');
+    
+    // Statistics
+    const totalAmount = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+    const paidAmount = invoices
+      .filter(invoice => invoice.status === 'Paid')
+      .reduce((sum, invoice) => sum + invoice.amount, 0);
+    const pendingAmount = invoices
+      .filter(invoice => invoice.status === 'Pending')
+      .reduce((sum, invoice) => sum + invoice.amount, 0);
+    const overdueAmount = invoices
+      .filter(invoice => invoice.status === 'Overdue')
+      .reduce((sum, invoice) => sum + invoice.amount, 0);
+    
+    const summary = {
+      total: invoices.length,
+      totalAmount,
+      pending: invoices.filter(invoice => invoice.status === 'Pending').length,
+      pendingAmount,
+      paid: invoices.filter(invoice => invoice.status === 'Paid').length,
+      paidAmount,
+      overdue: invoices.filter(invoice => invoice.status === 'Overdue').length,
+      overdueAmount
+    };
+    
+    return res.status(200).json({
+      success: true,
+      message: "Invoices retrieved successfully",
+      summary,
+      data: invoices
+    });
+    
+  } catch (error) {
+    console.error('Error retrieving invoices:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving invoices",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+async deleteInvoice(req: Request, res: Response): Promise<Response> {
+  try {
+    const invoiceData: DeleteInvoiceDto = req.body;
+    
+    // Validate that we have at least one identifier
+    if (!invoiceData.id && !invoiceData.invoice_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Either id or invoice_id is required"
+      });
+    }
+    
+    // Find the invoice
+    let invoice;
+    if (invoiceData.id && Types.ObjectId.isValid(invoiceData.id)) {
+      invoice = await Invoice.findById(invoiceData.id);
+    } else if (invoiceData.invoice_id) {
+      invoice = await Invoice.findOne({ invoice_id: invoiceData.invoice_id });
+    }
+    
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found"
+      });
+    }
+    
+    // Don't allow deletion of paid invoices
+    if (invoice.status === 'Paid') {
+      return res.status(400).json({
+        success: false,
+        message: "Paid invoices cannot be deleted"
+      });
+    }
+    
+    // Delete the invoice
+    await Invoice.findByIdAndDelete(invoice._id);
+    
+    return res.status(200).json({
+      success: true,
+      message: "Invoice deleted successfully"
+    });
+    
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error deleting invoice",
       error: error instanceof Error ? error.message : "Unknown error"
     });
   }
