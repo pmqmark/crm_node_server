@@ -9,6 +9,7 @@ import { ClientUpdateFields } from '../dtos/userdto';
 import { Client } from '../models/client';
 import Ticket from '../models/ticket';
 import { Project } from '../models/projects';
+import Invoice from '../models/invoice';
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -453,6 +454,120 @@ export class ClientController {
         return res.status(500).json({
           success: false,
           message: "Error retrieving projects",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+
+    async getClientInvoices(req: AuthRequest, res: Response): Promise<Response> {
+      try {
+        if (!req.user || !req.user.id) {
+          return res.status(401).json({
+            success: false,
+            message: "User not authenticated"
+          });
+        }
+    
+        const clientId = req.user.id;
+        const { status } = req.query;
+        
+        // Build query - find invoices for this client
+        const query: any = { client_id: new Types.ObjectId(clientId) };
+        
+        // Add status filter if provided
+        if (status) {
+          if (!['Pending', 'Paid', 'Overdue'].includes(status as string)) {
+            return res.status(400).json({
+              success: false,
+              message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'"
+            });
+          }
+          query.status = status;
+        }
+        
+        const invoices = await Invoice.find(query)
+          .sort({ invoiceDate: -1 })
+          .populate('project_id', 'projectName');
+        
+        // Calculate statistics
+        const totalAmount = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+        const pendingAmount = invoices
+          .filter(invoice => invoice.status === 'Pending')
+          .reduce((sum, invoice) => sum + invoice.amount, 0);
+        const overdueAmount = invoices
+          .filter(invoice => invoice.status === 'Overdue')
+          .reduce((sum, invoice) => sum + invoice.amount, 0);
+        
+        const summary = {
+          total: invoices.length,
+          pending: invoices.filter(invoice => invoice.status === 'Pending').length,
+          paid: invoices.filter(invoice => invoice.status === 'Paid').length,
+          overdue: invoices.filter(invoice => invoice.status === 'Overdue').length,
+          totalAmount,
+          pendingAmount,
+          overdueAmount
+        };
+        
+        return res.status(200).json({
+          success: true,
+          message: "Invoices retrieved successfully",
+          summary,
+          data: invoices
+        });
+        
+      } catch (error) {
+        console.error('Error retrieving client invoices:', error);
+        return res.status(500).json({
+          success: false,
+          message: "Error retrieving invoices",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+    
+    async getClientInvoiceDetails(req: AuthRequest, res: Response): Promise<Response> {
+      try {
+        if (!req.user || !req.user.id) {
+          return res.status(401).json({
+            success: false,
+            message: "User not authenticated"
+          });
+        }
+    
+        const clientId = req.user.id;
+        const { invoice_id } = req.body;
+        
+        if (!invoice_id) {
+          return res.status(400).json({
+            success: false,
+            message: "Invoice ID is required"
+          });
+        }
+        
+        const invoice = await Invoice.findOne({
+          invoice_id,
+          client_id: clientId
+        })
+        .populate('project_id', 'projectName');
+        
+        if (!invoice) {
+          return res.status(404).json({
+            success: false,
+            message: "Invoice not found or not accessible by this client"
+          });
+        }
+        
+        return res.status(200).json({
+          success: true,
+          message: "Invoice retrieved successfully",
+          data: invoice
+        });
+        
+      } catch (error) {
+        console.error('Error retrieving invoice details:', error);
+        return res.status(500).json({
+          success: false,
+          message: "Error retrieving invoice details",
           error: error instanceof Error ? error.message : "Unknown error"
         });
       }

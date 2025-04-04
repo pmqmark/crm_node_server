@@ -114,6 +114,27 @@ router.delete('/delete-ticket', (req, res) => {
   adminController.deleteTicket(req, res);
 });
 
+// Invoice routes
+router.post('/create-invoice', (req, res) => {
+  adminController.createInvoice(req, res);
+});
+
+router.post('/get-invoice', (req, res) => {
+  adminController.getInvoice(req, res);
+});
+
+router.get('/list-invoices', (req, res) => {
+  adminController.listInvoices(req, res);
+});
+
+router.put('/update-invoice', (req, res) => {
+  adminController.updateInvoice(req, res);
+});
+
+router.delete('/delete-invoice', (req, res) => {
+  adminController.deleteInvoice(req, res);
+});
+
 export default router;
 
 

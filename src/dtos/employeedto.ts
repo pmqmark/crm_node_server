@@ -1,9 +1,8 @@
 import { Schema, Types } from "mongoose";
 
-
 export interface CreateEmployeeDto {
   email: string;
-  employee_id: string;
+  employee_id?: string;
   firstName: string;
   lastName: string;
   password: string;
