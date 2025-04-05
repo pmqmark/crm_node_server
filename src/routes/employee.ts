@@ -42,7 +42,9 @@ router.get("/my-tasks",(req,res)=>{
 })
 
 
-
+router.get("/findallemployee",(req,res,next)=>{
+    employeeController.listEmployees(req,res)
+})
 
 
 router.get("/punch-status", (req,res)=>{
