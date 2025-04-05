@@ -56,7 +56,8 @@ router.post('/update-task',(req,res)=>{
 })
 
 
-router.get('list-project',(req,res)=>{
+router.get('/list-project',(req,res)=>{
+    console.log("list project")
     employeeController.listProjects(req,res)
 
 })
