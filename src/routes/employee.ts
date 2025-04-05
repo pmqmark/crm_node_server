@@ -51,6 +51,15 @@ router.get("/punch-status", (req,res)=>{
     employeeController.checkPunchStatus(req,res)
 });
 
+router.post('/update-task',(req,res)=>{
+    employeeController.updateTask(req,res);
+})
+
+
+router.get('list-project',(req,res)=>{
+    employeeController.listProjects(req,res)
+
+})
 
 
 export default router;

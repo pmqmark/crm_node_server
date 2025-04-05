@@ -29,6 +29,17 @@ interface ITaskWithProject extends Document {
   createdAt: Date;
 }
 
+interface IUpdatedTask {
+  _id: Types.ObjectId;
+  description: string;
+  status: string;
+  project_id?: {
+      projectName: string;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 
 
 export class EmployeeController {
@@ -165,6 +176,107 @@ export class EmployeeController {
       });
     }
   }
+
+  async updateTask(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({
+                message: "Unauthorized: User ID is missing"
+            });
+        }
+
+        const { taskId, status, description } = req.body;
+
+        if (!taskId || !Types.ObjectId.isValid(taskId)) {
+            return res.status(400).json({
+                message: "Invalid task ID"
+            });
+        }
+
+        // Find the task and ensure the employee is assigned to it
+        const task = await Task.findOne({
+            _id: taskId,
+            assigned_employees: req.user.id
+        });
+
+        if (!task) {
+            return res.status(404).json({
+                message: "Task not found or you're not assigned to this task"
+            });
+        }
+
+        // Prepare update object with type safety
+        const updateData: Partial<{ status: string; description: string }> = {};
+
+        if (status) {
+            if (!['Pending', 'In Progress', 'Completed', 'On Hold'].includes(status)) {
+                return res.status(400).json({
+                    message: "Invalid status value"
+                });
+            }
+            updateData.status = status;
+        }
+
+        if (description) {
+            updateData.description = description;
+        }
+
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({
+                message: "No valid update fields provided"
+            });
+        }
+
+        // Update the task with proper type assertion
+        const updatedTask = await Task.findByIdAndUpdate<IUpdatedTask>(
+            taskId,
+            { $set: updateData },
+            { new: true }
+        ).populate('project_id', 'projectName');
+
+        if (!updatedTask) {
+            return res.status(500).json({
+                message: "Failed to update task"
+            });
+        }
+
+        return res.status(200).json({
+            message: "Task updated successfully",
+            data: {
+                taskId: updatedTask._id,
+                description: updatedTask.description,
+                status: updatedTask.status,
+                projectName: updatedTask.project_id?.projectName || 'No Project',
+                createdAt: updatedTask.createdAt,
+                updatedAt: updatedTask.updatedAt
+            }
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: "Error updating task",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+}
+
+
+  async listProjects(req: Request, res: Response): Promise<Response> {
+    try {
+      const projects = await Project.find();
+
+      return res.status(200).json({
+        message: "clients retrieved successfully",
+        data: projects
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error retrieving employees",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+  
 
   async searchEmployee(req: Request, res: Response): Promise<Response> {
     try {
