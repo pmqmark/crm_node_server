@@ -1,4 +1,3 @@
-
 import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from './verifyToken';
 export const roleGuard = (allowedRoles: string | string[]) => {

@@ -16,6 +16,7 @@ export interface ILeave extends Document {
     reason: string;
     status: 'Pending' | 'Approved' | 'Rejected';
     comments?: string;  // Added comments field as optional
+    approvedBy?: mongoose.Types.ObjectId;  // Admin who approved/rejected the request
     createdAt: Date;
     updatedAt: Date;
 }
@@ -56,6 +57,11 @@ const leaveSchema = new Schema<ILeave>({
         type: String,
         enum: ['Pending', 'Approved', 'Rejected'],
         default: 'Pending'
+    },
+    approvedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'Employee',
+        required: false  // Optional because it's only set when approved/rejected
     }
 }, {
     timestamps: true

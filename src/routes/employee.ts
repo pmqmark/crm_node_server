@@ -62,5 +62,9 @@ router.get('/list-project',(req,res)=>{
 
 })
 
+router.get("/leave-history", (req, res) => {
+    employeeController.getMyLeaveHistory(req, res);
+  });
+
 
 export default router;

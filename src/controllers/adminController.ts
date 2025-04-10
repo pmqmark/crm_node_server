@@ -134,69 +134,69 @@ export class AdminController{
 
   async updateLeaveStatus(req: Request, res: Response): Promise<Response> {
     try {
-        const { leaveId, status, comments } = req.body;
+      const { leaveId, status, comments } = req.body;
 
-        // Validate required fields
-        if (!leaveId || !status) {
-            return res.status(400).json({
-                message: "Leave ID and status are required"
-            });
-        }
+      // Validate required fields
+      if (!leaveId || !status) {
+        return res.status(400).json({
+          message: "Leave ID and status are required"
+        });
+      }
 
-        // Validate status
+      // Validate status
         if (!['Approved', 'Rejected'].includes(status)) {
-            return res.status(400).json({
+        return res.status(400).json({
                 message: "Status must be either 'Approved' or 'Rejected'"
-            });
-        }
+        });
+      }
 
-        // Find the leave request
-        const leaveRequest = await Leave.findById(leaveId);
-        if (!leaveRequest) {
-            return res.status(404).json({
-                message: "Leave request not found"
-            });
-        }
+      // Find the leave request
+      const leaveRequest = await Leave.findById(leaveId);
+      if (!leaveRequest) {
+        return res.status(404).json({
+          message: "Leave request not found"
+        });
+      }
 
         // Check if leave is already processed
         if (leaveRequest.status !== 'Pending') {
-            return res.status(400).json({
-                message: `Leave request has already been ${leaveRequest.status.toLowerCase()}`
-            });
-        }
+        return res.status(400).json({
+          message: `Leave request has already been ${leaveRequest.status.toLowerCase()}`
+        });
+      }
 
-        // Update leave status
-        const updatedLeave = await Leave.findByIdAndUpdate(
-            leaveId,
+      // Update leave status
+      const updatedLeave = await Leave.findByIdAndUpdate(
+        leaveId,
             {
                 $set: {
                     status,
                     ...(comments && { comments })
                 }
             },
-            { new: true }
-        );
-
+        { new: true }
+      );
+      
         // Get employee details for response
         const employee = await Employee.findOne({ 
             employee_id: leaveRequest.employee_id 
         }).select('firstName lastName employee_id');
 
-        return res.status(200).json({
-            message: `Leave request ${status.toLowerCase()} successfully`,
+      return res.status(200).json({
+        message: `Leave request ${status.toLowerCase()} successfully`,
             data: {
                 ...updatedLeave?.toObject(),
                 employeeDetails: employee
             }
-        });
+      });
 
     } catch (error) {
-        return res.status(500).json({
-            message: "Error updating leave status",
-            error: error instanceof Error ? error.message : "Unknown error"
-        });
+      return res.status(500).json({
+        message: "Error updating leave status",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
-}
+  }
 
     async  createClient(req: Request, res: Response): Promise<Response> {
       try {
