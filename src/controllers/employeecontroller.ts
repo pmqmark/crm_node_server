@@ -1,4 +1,3 @@
-
 import { Request, Response } from 'express';
 import mongoose, { Types } from 'mongoose';
 import Employee from "../models/employee";
@@ -10,7 +9,6 @@ import AttendanceLog from '../models/logs';
 import Leave, { LeaveType } from '../models/leave';
 import { Project } from '../models/projects';
 import Task from '../models/tasks';
-
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -40,7 +38,17 @@ interface IUpdatedTask {
   updatedAt: Date;
 }
 
+interface IPopulatedDepartment {
+  _id: Types.ObjectId;
+  name: string;
+  description: string;
+}
 
+interface IPopulatedRole {
+  _id: Types.ObjectId;
+  name: string;
+  description: string;
+}
 
 export class EmployeeController {
 
@@ -474,112 +482,6 @@ export class EmployeeController {
     }
 }
 
-//   async checkIn(req: AuthRequest, res: Response): Promise<Response> {
-//     try {
-//         if (!req.user || !req.user.id) {
-//             return res.status(401).json({
-//                 message: "Unauthorized: User ID is missing"
-//             });
-//         }
-
-//         const employee_id = req.user.id;
-//         const currentDate = new Date();
-//         currentDate.setHours(0, 0, 0, 0); // Reset time to start of day
-
-//         // Check if attendance record already exists for today
-//         const existingLog = await AttendanceLog.findOne({
-//             employee_id,
-//             date: {
-//                 $gte: currentDate,
-//                 $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000)
-//             }
-//         });
-
-//         if (existingLog) {
-//             if (existingLog.punchOut === null) {
-//                 return res.status(400).json({
-//                     message: "You are already checked in for today"
-//                 });
-//             }
-//             return res.status(400).json({
-//                 message: "You have already completed your attendance for today"
-//             });
-//         }
-
-//         // Create new attendance log
-//         const attendanceLog = await AttendanceLog.create({
-//             employee_id,
-//             date: new Date(),
-//             punchIn: new Date(),
-//             status: 'Present'
-//         });
-
-//         return res.status(201).json({
-//             message: "Check-in successful",
-//             data: attendanceLog
-//         });
-
-//     } catch (error) {
-//         return res.status(500).json({
-//             message: "Error during check-in",
-//             error: error instanceof Error ? error.message : "Unknown error"
-//         });
-//     }
-// }
-
-
-
-// async checkOut(req: AuthRequest, res: Response): Promise<Response> {
-//   try {
-//       if (!req.user || !req.user.id) {
-//           return res.status(401).json({
-//               message: "Unauthorized: User ID is missing"
-//           });
-//       }
-
-//       const employee_id = req.user.id;
-//       const currentDate = new Date();
-//       currentDate.setHours(0, 0, 0, 0);
-
-//       // Find today's attendance record
-//       const attendanceLog = await AttendanceLog.findOne({
-//           employee_id,
-//           date: {
-//               $gte: currentDate,
-//               $lt: new Date(currentDate.getTime() + 24 * 60 * 60 * 1000)
-//           }
-//       });
-
-//       if (!attendanceLog) {
-//           return res.status(404).json({
-//               message: "No check-in record found for today"
-//           });
-//       }
-
-//       if (attendanceLog.punchOut !== null) {
-//           return res.status(400).json({
-//               message: "You have already checked out for today"
-//           });
-//       }
-
-//       // Update punch-out time
-//       attendanceLog.punchOut = new Date();
-//       await attendanceLog.save(); // This will trigger the pre-save hook to calculate hours
-
-//       return res.status(200).json({
-//           message: "Check-out successful",
-//           data: attendanceLog
-//       });
-
-//   } catch (error) {
-//       return res.status(500).json({
-//           message: "Error during check-out",
-//           error: error instanceof Error ? error.message : "Unknown error"
-//       });
-//   }
-// }
-
-
 async checkIn(req: AuthRequest, res: Response): Promise<Response> {
   try {
       if (!req.user || !req.user.id) {
@@ -968,6 +870,231 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
   }
   
 
+  /**
+   * Get leave history for the current employee
+   * Shows all leave requests with status and provides summary statistics
+   */
+  async getMyLeaveHistory(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      
+      interface IPopulatedEmployee {
+        _id: Types.ObjectId;
+        firstName: string;
+        lastName: string;
+        employee_id: string;
+      }
+      
+      // Find all leave requests for this employee
+      const leaves = await Leave.find({
+        employee_id: new Types.ObjectId(employeeId)
+      })
+      .sort({ createdAt: -1 })
+      .populate<{ approvedBy: IPopulatedEmployee }>('approvedBy', 'firstName lastName employee_id');
+      
+      if (leaves.length === 0) {
+        return res.status(200).json({
+          success: true,
+          message: "No leave records found",
+          data: {
+            summary: {
+              totalRequests: 0,
+              approved: 0,
+              rejected: 0,
+              pending: 0,
+              byType: {
+                medical: 0,
+                casual: 0,
+                vacation: 0
+              },
+              totalDaysTaken: 0
+            },
+            leaveHistory: []
+          }
+        });
+      }
+      
+      // Calculate summary statistics
+      const summary = {
+        totalRequests: leaves.length,
+        approved: leaves.filter(leave => leave.status === 'Approved').length,
+        rejected: leaves.filter(leave => leave.status === 'Rejected').length,
+        pending: leaves.filter(leave => leave.status === 'Pending').length,
+        byType: {
+          medical: leaves.filter(leave => leave.leaveType === LeaveType.MEDICAL).length,
+          casual: leaves.filter(leave => leave.leaveType === LeaveType.CASUAL).length,
+          vacation: leaves.filter(leave => leave.leaveType === LeaveType.VACATION).length
+        },
+        totalDaysTaken: leaves
+          .filter(leave => leave.status === 'Approved')
+          .reduce((total, leave) => total + leave.numberOfDays, 0)
+      };
+      
+      // Format the leaves data for the response
+      const formattedLeaves = leaves.map(leave => {
+        const formattedLeave = {
+          id: leave._id,
+          leaveType: leave.leaveType,
+          fromDate: leave.fromDate,
+          toDate: leave.toDate,
+          numberOfDays: leave.numberOfDays,
+          reason: leave.reason,
+          status: leave.status,
+          comments: leave.comments || null,
+          createdAt: leave.createdAt,
+          updatedAt: leave.updatedAt,
+          approvedBy: leave.approvedBy ? {
+            id: leave.approvedBy._id,
+            name: `${leave.approvedBy.firstName} ${leave.approvedBy.lastName}`,
+            employee_id: leave.approvedBy.employee_id
+          } : null
+        };
+        
+        return formattedLeave;
+      });
+      
+      // Check for upcoming leave
+      const today = new Date();
+      const upcomingLeave = leaves.find(leave => 
+        leave.status === 'Approved' && 
+        new Date(leave.fromDate) > today
+      );
+      
+      // Check for ongoing leave
+      const ongoingLeave = leaves.find(leave => 
+        leave.status === 'Approved' && 
+        new Date(leave.fromDate) <= today && 
+        new Date(leave.toDate) >= today
+      );
+      
+      // Add status indicators
+      const leaveStatus = {
+        hasUpcomingLeave: !!upcomingLeave,
+        upcomingLeave: upcomingLeave ? {
+          id: upcomingLeave._id,
+          leaveType: upcomingLeave.leaveType,
+          fromDate: upcomingLeave.fromDate,
+          toDate: upcomingLeave.toDate,
+          daysRemaining: Math.ceil((new Date(upcomingLeave.fromDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        } : null,
+        isCurrentlyOnLeave: !!ongoingLeave,
+        ongoingLeave: ongoingLeave ? {
+          id: ongoingLeave._id,
+          leaveType: ongoingLeave.leaveType,
+          fromDate: ongoingLeave.fromDate, 
+          toDate: ongoingLeave.toDate,
+          daysRemaining: Math.ceil((new Date(ongoingLeave.toDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        } : null
+      };
+      
+      return res.status(200).json({
+        success: true,
+        message: "Leave history retrieved successfully",
+        data: {
+          summary,
+          leaveStatus,
+          leaveHistory: formattedLeaves
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving leave history:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving leave history",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async getMyProfile(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const userId = req.user.id;
+      
+      if (!Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid user ID format: ${userId}`
+        });
+      }
+  
+      // Get employee with populated references using proper TypeScript generics
+      const employee = await Employee.findById(userId)
+        .populate<{ department_id: IPopulatedDepartment }>('department_id', 'name description')
+        .populate<{ role_id: IPopulatedRole }>('role_id', 'name description')
+        .select('-password'); // Exclude password
+  
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          message: "Employee profile not found"
+        });
+      }
+      
+      // Format the response
+      const profileData = {
+        id: employee._id,
+        employee_id: employee.employee_id,
+        name: `${employee.firstName} ${employee.lastName}`,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        email: employee.email,
+        phone: employee.phone,
+        department: employee.department_id ? {
+          id: employee.department_id._id,
+          name: employee.department_id.name,
+          description: employee.department_id.description
+        } : null,
+        role: employee.role_id ? {
+          id: employee.role_id._id,
+          name: employee.role_id.name,
+          description: employee.role_id.description
+        } : null,
+        hireDate: employee.hireDate,
+        dob: employee.dob,
+        address: {
+          addressline1: employee.addressline1,
+          addressline2: employee.addressline2,
+          city: employee.city,
+          state: employee.state,
+          country: employee.country,
+          postalcode: employee.postalcode
+        },
+        bio: employee.employeebio,
+        createdAt: employee.createdAt,
+        lastLogin: employee.lastLogin
+      };
+  
+      return res.status(200).json({
+        success: true,
+        message: "Employee profile retrieved successfully",
+        data: profileData
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving employee profile:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving employee profile",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
 }
-    
+
 
