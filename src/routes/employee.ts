@@ -66,5 +66,8 @@ router.get("/leave-history", (req, res) => {
     employeeController.getMyLeaveHistory(req, res);
   });
 
+router.get("/my-profile", (req, res) => {
+    employeeController.getMyProfile(req, res);
+});
 
 export default router;

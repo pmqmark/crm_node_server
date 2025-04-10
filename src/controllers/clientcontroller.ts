@@ -572,4 +572,99 @@ export class ClientController {
         });
       }
     }
+
+    /**
+     * Get the profile details of the currently logged-in client
+     * Returns complete client profile information with related statistics
+     */
+    async getMyClientProfile(req: AuthRequest, res: Response): Promise<Response> {
+      try {
+        if (!req.user || !req.user.id) {
+          return res.status(401).json({
+            success: false,
+            message: "Unauthorized: User ID is missing"
+          });
+        }
+    
+        const clientId = req.user.id;
+        
+        if (!Types.ObjectId.isValid(clientId)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid client ID format: ${clientId}`
+          });
+        }
+    
+        // Get client without password
+        const client = await Client.findById(clientId).select('-password');
+    
+        if (!client) {
+          return res.status(404).json({
+            success: false,
+            message: "Client profile not found"
+          });
+        }
+        
+        // Get related statistics using TypeScript-safe approach
+        const projectCount = await Project.countDocuments({ client: new Types.ObjectId(clientId) });
+        
+        const ticketCount = await Ticket.countDocuments({ client_id: new Types.ObjectId(clientId) });
+        
+        const invoiceCount = await Invoice.countDocuments({ client_id: new Types.ObjectId(clientId) });
+        
+        const activeProjectCount = await Project.countDocuments({ 
+          client: new Types.ObjectId(clientId),
+          status: 'In Progress'
+        });
+        
+        const pendingInvoiceAmount = await Invoice.aggregate([
+          { 
+            $match: { 
+              client_id: new Types.ObjectId(clientId),
+              status: 'Pending'
+            }
+          },
+          { 
+            $group: { 
+              _id: null, 
+              total: { $sum: '$amount' } 
+            }
+          }
+        ]);
+        
+        // Format the response
+        const profileData = {
+          id: client._id,
+          companyName: client.companyName,
+          contactPerson: client.contactPerson,
+          email: client.email,
+          phone: client.phone,
+          address: client.address,
+          description: client.description,
+          createdAt: client.createdAt,
+          lastLogin: client.lastLogin,
+          stats: {
+            projectCount,
+            activeProjectCount,
+            ticketCount,
+            invoiceCount,
+            pendingAmount: pendingInvoiceAmount.length > 0 ? pendingInvoiceAmount[0].total : 0
+          }
+        };
+    
+        return res.status(200).json({
+          success: true,
+          message: "Client profile retrieved successfully",
+          data: profileData
+        });
+    
+      } catch (error) {
+        console.error('Error retrieving client profile:', error);
+        return res.status(500).json({
+          success: false,
+          message: "Error retrieving client profile",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
 }

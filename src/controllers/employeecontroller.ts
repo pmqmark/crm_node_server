@@ -10,7 +10,6 @@ import Leave, { LeaveType } from '../models/leave';
 import { Project } from '../models/projects';
 import Task from '../models/tasks';
 
-
 export interface AuthRequest extends Request {
   user?: User;
 }
@@ -39,7 +38,17 @@ interface IUpdatedTask {
   updatedAt: Date;
 }
 
+interface IPopulatedDepartment {
+  _id: Types.ObjectId;
+  name: string;
+  description: string;
+}
 
+interface IPopulatedRole {
+  _id: Types.ObjectId;
+  name: string;
+  description: string;
+}
 
 export class EmployeeController {
 
@@ -1000,6 +1009,88 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
       return res.status(500).json({
         success: false,
         message: "Error retrieving leave history",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async getMyProfile(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const userId = req.user.id;
+      
+      if (!Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid user ID format: ${userId}`
+        });
+      }
+  
+      // Get employee with populated references using proper TypeScript generics
+      const employee = await Employee.findById(userId)
+        .populate<{ department_id: IPopulatedDepartment }>('department_id', 'name description')
+        .populate<{ role_id: IPopulatedRole }>('role_id', 'name description')
+        .select('-password'); // Exclude password
+  
+      if (!employee) {
+        return res.status(404).json({
+          success: false,
+          message: "Employee profile not found"
+        });
+      }
+      
+      // Format the response
+      const profileData = {
+        id: employee._id,
+        employee_id: employee.employee_id,
+        name: `${employee.firstName} ${employee.lastName}`,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        email: employee.email,
+        phone: employee.phone,
+        department: employee.department_id ? {
+          id: employee.department_id._id,
+          name: employee.department_id.name,
+          description: employee.department_id.description
+        } : null,
+        role: employee.role_id ? {
+          id: employee.role_id._id,
+          name: employee.role_id.name,
+          description: employee.role_id.description
+        } : null,
+        hireDate: employee.hireDate,
+        dob: employee.dob,
+        address: {
+          addressline1: employee.addressline1,
+          addressline2: employee.addressline2,
+          city: employee.city,
+          state: employee.state,
+          country: employee.country,
+          postalcode: employee.postalcode
+        },
+        bio: employee.employeebio,
+        createdAt: employee.createdAt,
+        lastLogin: employee.lastLogin
+      };
+  
+      return res.status(200).json({
+        success: true,
+        message: "Employee profile retrieved successfully",
+        data: profileData
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving employee profile:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving employee profile",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }

@@ -40,4 +40,8 @@ router.post('/invoice-details', authMiddleware, (req, res) => {
   clientController.getClientInvoiceDetails(req, res);
 });
 
+router.get("/my-profile", authMiddleware, (req, res) => {
+  clientController.getMyClientProfile(req, res);
+});
+
 export default router;
