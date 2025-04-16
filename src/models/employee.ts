@@ -82,7 +82,13 @@ const employeeSchema = new Schema<IEmployee>({
   employeebio: {
     type: String,
     required: true,
-  }
+  },
+  status: {
+    type: String,
+    enum: ['Full-Time', 'Contract', 'Probation', 'WFH'],
+    default: 'Probation',
+    required: true
+}
 });
 
 // Pre-save middleware to generate employee_id
