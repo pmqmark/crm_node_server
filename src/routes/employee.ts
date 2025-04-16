@@ -70,4 +70,24 @@ router.get("/my-profile", (req, res) => {
     employeeController.getMyProfile(req, res);
 });
 
+router.get("/department-colleagues", authMiddleware, (req, res) => {
+    employeeController.getDepartmentColleagues(req, res);
+});
+
+router.get("/my-skills", authMiddleware, (req, res) => {
+    employeeController.getMySkills(req, res);
+});
+
+router.post("/add-skill", authMiddleware, (req, res) => {
+    employeeController.addSkill(req, res);
+});
+
+router.put("/update-skill", authMiddleware, (req, res) => {
+    employeeController.updateSkill(req, res);
+});
+
+router.delete("/delete-skill", authMiddleware, (req, res) => {
+    employeeController.deleteSkill(req, res);
+});
+
 export default router;
