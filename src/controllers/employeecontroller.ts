@@ -9,6 +9,7 @@ import AttendanceLog from '../models/logs';
 import Leave, { LeaveType } from '../models/leave';
 import { Project } from '../models/projects';
 import Task from '../models/tasks';
+import Skill from '../models/skill';
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -1092,6 +1093,492 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
       return res.status(500).json({
         success: false,
         message: "Error retrieving employee profile",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get all colleagues in the same department, properly sorted and deduplicated
+   * Returns department manager first, then team leads, then regular employees
+   * Includes current user information
+   */
+  async getDepartmentColleagues(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+  
+      // Get the current employee with their role details
+      const currentEmployee = await Employee.findById(employeeId)
+        .populate('role_id', 'name')
+        .populate('department_id', 'name description');
+  
+      if (!currentEmployee) {
+        return res.status(404).json({
+          success: false,
+          message: "Employee not found"
+        });
+      }
+  
+      // Check if employee has a department assigned
+      if (!currentEmployee.department_id) {
+        return res.status(400).json({
+          success: false,
+          message: "You are not assigned to any department"
+        });
+      }
+  
+      // Safe way to access department_id properties with proper type handling
+      const departmentId = typeof currentEmployee.department_id === 'string' 
+        ? currentEmployee.department_id 
+        : (currentEmployee.department_id as any)._id;
+  
+      // Get department details including the manager
+      const department = await Department.findById(departmentId)
+        .populate('manager_id', 'firstName lastName employee_id email phone');
+  
+      if (!department) {
+        return res.status(404).json({
+          success: false,
+          message: "Department not found"
+        });
+      }
+  
+      // Find all employees in the same department (including current user)
+      const departmentEmployees = await Employee.find({ 
+        department_id: departmentId
+      })
+      .populate('role_id', 'name')
+      .select('firstName lastName employee_id email phone role_id')
+      .lean();
+  
+      // Get all roles to check for team leads
+      const roles = await Role.find({});
+      
+      // Identify team lead roles (contains 'lead' or 'senior' in name)
+      const teamLeadRoleIds = roles
+        .filter(role => role.name.toLowerCase().includes('lead') || 
+                      role.name.toLowerCase().includes('senior'))
+        .map(role => role._id.toString());
+  
+      // Create a set of processed IDs to avoid duplicates
+      const processedEmployeeIds = new Set<string>();
+      const formattedEmployees: any[] = [];
+  
+      // First, add the manager if exists (and not the current employee)
+      if (department.manager_id) {
+        // Safe way to handle manager_id with proper type checking
+        const managerId = typeof department.manager_id === 'string'
+          ? department.manager_id
+          : (department.manager_id as any)._id.toString();
+          
+        const manager = departmentEmployees.find(emp => emp._id.toString() === managerId);
+        
+        if (manager) {
+          // Don't exclude the manager if they're the current employee - we'll handle this specifically 
+          processedEmployeeIds.add(managerId);
+  
+          const roleObj = manager.role_id && typeof manager.role_id !== 'string' ? manager.role_id : null;
+          const roleName = roleObj && (roleObj as any).name ? (roleObj as any).name : 'Department Manager';
+  
+          formattedEmployees.push({
+            id: manager._id,
+            name: `${manager.firstName || ''} ${manager.lastName || ''}`.trim(),
+            employee_id: manager.employee_id || '',
+            email: manager.email || '',
+            phone: manager.phone || '',
+            role: roleName,
+            isManager: true,
+            isTeamLead: false
+          });
+        }
+      }
+  
+      // Add team leads next (not already added, not the current employee)
+      departmentEmployees.forEach(emp => {
+        // Skip if already processed
+        if (processedEmployeeIds.has(emp._id.toString())) {
+          return;
+        }
+  
+        let isTeamLead = false;
+        let roleName = 'No Role';
+  
+        if (emp.role_id) {
+          // Safe way to handle role_id with proper type checking
+          const roleObj = typeof emp.role_id !== 'string' ? emp.role_id : null;
+          roleName = roleObj && (roleObj as any).name ? (roleObj as any).name : 'No Role';
+          
+          const roleId = roleObj ? (roleObj as any)._id.toString() : '';
+          isTeamLead = teamLeadRoleIds.includes(roleId);
+        }
+  
+        // Only add team leads in this pass
+        if (isTeamLead) {
+          processedEmployeeIds.add(emp._id.toString());
+          
+          formattedEmployees.push({
+            id: emp._id,
+            name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+            employee_id: emp.employee_id || '',
+            email: emp.email || '',
+            phone: emp.phone || '',
+            role: roleName,
+            isManager: false,
+            isTeamLead: true
+          });
+        }
+      });
+  
+      // Add remaining regular employees (alphabetically)
+      const regularEmployees = departmentEmployees
+        .filter(emp => !processedEmployeeIds.has(emp._id.toString()))
+        .sort((a, b) => {
+          const aName = a.firstName || '';
+          const bName = b.firstName || '';
+          return aName.localeCompare(bName);
+        });
+  
+      regularEmployees.forEach(emp => {
+        let roleName = 'No Role';
+        
+        if (emp.role_id) {
+          // Safe way to handle role_id with proper type checking
+          const roleObj = typeof emp.role_id !== 'string' ? emp.role_id : null;
+          roleName = roleObj && (roleObj as any).name ? (roleObj as any).name : 'No Role';
+        }
+        
+        formattedEmployees.push({
+          id: emp._id,
+          name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+          employee_id: emp.employee_id || '',
+          email: emp.email || '',
+          phone: emp.phone || '',
+          role: roleName,
+          isManager: false,
+          isTeamLead: false
+        });
+      });
+  
+      // Extract the current employee
+      const currentEmployeeInfo = formattedEmployees.find(
+        emp => emp.id.toString() === employeeId.toString()
+      );
+      
+      // Remove current employee from colleagues list
+      const colleagues = formattedEmployees.filter(
+        emp => emp.id.toString() !== employeeId.toString()
+      );
+  
+      // Get role info for current user using type-safe approach
+      let currentUserRole = 'No Role';
+      let isCurrentUserManager = false;
+      let isCurrentUserTeamLead = false;
+      
+      if (currentEmployee.role_id) {
+        // Safe way to handle role_id with proper type checking
+        const roleObj = currentEmployee.role_id;
+        currentUserRole = typeof roleObj === 'string' 
+          ? 'No Role' 
+          : ((roleObj as any).name || 'No Role');
+        
+        // Check if team lead
+        const roleId = typeof roleObj === 'string' 
+          ? roleObj 
+          : (roleObj as any)._id.toString();
+          
+        if (roleId && teamLeadRoleIds.includes(roleId)) {
+          isCurrentUserTeamLead = true;
+        }
+      }
+      
+      // Check if department manager with proper type safety
+      if (department.manager_id) {
+        const managerId = typeof department.manager_id === 'string'
+          ? department.manager_id
+          : (department.manager_id as any)._id.toString();
+          
+        isCurrentUserManager = managerId === employeeId.toString();
+      }
+  
+      // Safe way to access department properties
+      const departmentName = department.name || '';
+      const departmentDescription = department.description || '';
+  
+      return res.status(200).json({
+        success: true,
+        message: "Department colleagues retrieved successfully",
+        data: {
+          department: {
+            id: department._id,
+            name: departmentName,
+            description: departmentDescription
+          },
+          currentUser: {
+            id: currentEmployee._id,
+            name: `${currentEmployee.firstName} ${currentEmployee.lastName}`,
+            employee_id: currentEmployee.employee_id,
+            email: currentEmployee.email,
+            phone: currentEmployee.phone || '',
+            role: currentUserRole,
+            isManager: isCurrentUserManager,
+            isTeamLead: isCurrentUserTeamLead
+          },
+          colleagues
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving department colleagues:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving department colleagues",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Add a new skill for the employee
+   */
+  async addSkill(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { name, proficiency } = req.body;
+  
+      // Validate required fields
+      if (!name) {
+        return res.status(400).json({
+          success: false,
+          message: "Skill name is required"
+        });
+      }
+  
+      // Validate proficiency is one of the allowed values
+      const allowedProficiencies = [0, 25, 50, 75, 100];
+      const proficiencyValue = proficiency ? Number(proficiency) : 0;
+      
+      if (!allowedProficiencies.includes(proficiencyValue)) {
+        return res.status(400).json({
+          success: false,
+          message: "Proficiency must be one of: 0, 25, 50, 75, 100"
+        });
+      }
+  
+      // Check if skill already exists for this employee
+      const existingSkill = await Skill.findOne({
+        employee_id: new Types.ObjectId(employeeId),
+        name: name
+      });
+  
+      if (existingSkill) {
+        return res.status(400).json({
+          success: false,
+          message: "You already have this skill registered. Use update instead."
+        });
+      }
+  
+      // Create the skill
+      const skill = new Skill({
+        employee_id: new Types.ObjectId(employeeId),
+        name,
+        proficiency: proficiencyValue,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+  
+      const savedSkill = await skill.save();
+  
+      return res.status(201).json({
+        success: true,
+        message: "Skill added successfully",
+        data: {
+          id: savedSkill._id,
+          name: savedSkill.name,
+          proficiency: savedSkill.proficiency,
+          created_at: savedSkill.created_at,
+          updated_at: savedSkill.updated_at
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error adding skill:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error adding skill",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Update an existing skill's proficiency
+   */
+  async updateSkill(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { skillId, proficiency } = req.body;
+  
+      // Validate required fields
+      if (!skillId || !Types.ObjectId.isValid(skillId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid skill ID is required"
+        });
+      }
+  
+      // Validate proficiency is one of the allowed values
+      const allowedProficiencies = [0, 25, 50, 75, 100];
+      const proficiencyValue = Number(proficiency);
+      
+      if (!allowedProficiencies.includes(proficiencyValue)) {
+        return res.status(400).json({
+          success: false,
+          message: "Proficiency must be one of: 0, 25, 50, 75, 100"
+        });
+      }
+  
+      // Find the skill and ensure it belongs to the employee
+      const skill = await Skill.findOne({
+        _id: new Types.ObjectId(skillId),
+        employee_id: new Types.ObjectId(employeeId)
+      });
+  
+      if (!skill) {
+        return res.status(404).json({
+          success: false,
+          message: "Skill not found or you don't have permission to edit it"
+        });
+      }
+  
+      // Update the skill
+      skill.proficiency = proficiencyValue;
+      skill.updated_at = new Date();
+      await skill.save();
+  
+      return res.status(200).json({
+        success: true,
+        message: "Skill updated successfully",
+        data: {
+          id: skill._id,
+          name: skill.name,
+          proficiency: skill.proficiency,
+          created_at: skill.created_at,
+          updated_at: skill.updated_at
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error updating skill:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating skill",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Delete an existing skill
+   */
+  async deleteSkill(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { skillId } = req.body;
+  
+      // Validate required fields
+      if (!skillId || !Types.ObjectId.isValid(skillId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid skill ID is required"
+        });
+      }
+  
+      // Find and delete the skill, ensuring it belongs to the employee
+      const result = await Skill.findOneAndDelete({
+        _id: new Types.ObjectId(skillId),
+        employee_id: new Types.ObjectId(employeeId)
+      });
+  
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Skill not found or you don't have permission to delete it"
+        });
+      }
+  
+      return res.status(200).json({
+        success: true,
+        message: "Skill deleted successfully"
+      });
+  
+    } catch (error) {
+      console.error('Error deleting skill:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting skill",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Get all skills for the current employee
+   */
+  async getMySkills(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+  
+      // Find all skills for this employee, sorted by name
+      const skills = await Skill.find({
+        employee_id: new Types.ObjectId(employeeId)
+      }).sort({ name: 1 });
+  
+      return res.status(200).json({
+        success: true,
+        message: "Skills retrieved successfully",
+        data: skills
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving skills:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving skills",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }
