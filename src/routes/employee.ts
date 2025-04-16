@@ -90,4 +90,30 @@ router.delete("/delete-skill", authMiddleware, (req, res) => {
     employeeController.deleteSkill(req, res);
 });
 
+router.get("/todos", authMiddleware, (req, res) => {
+  employeeController.getMyTodos(req, res);
+});
+
+router.post("/todos", authMiddleware, (req, res) => {
+  employeeController.createTodo(req, res);
+});
+
+router.patch("/todos/toggle", authMiddleware, (req, res) => {
+  employeeController.toggleTodo(req, res);
+});
+
+router.delete("/todos", authMiddleware, (req, res) => {
+  employeeController.deleteTodo(req, res);
+});
+
+// Get attendance summary statistics
+router.get("/attendance-analytics", authMiddleware, (req, res) => {
+  employeeController.getAttendanceAnalytics(req, res);
+});
+
+// Get detailed weekly attendance data for charts
+router.get("/weekly-attendance", authMiddleware, (req, res) => {
+  employeeController.getWeeklyAttendance(req, res);
+});
+
 export default router;

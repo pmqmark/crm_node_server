@@ -10,6 +10,7 @@ import Leave, { LeaveType } from '../models/leave';
 import { Project } from '../models/projects';
 import Task from '../models/tasks';
 import Skill from '../models/skill';
+import Todo from '../models/todo';
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -1582,6 +1583,550 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }
+  }
+
+
+  async getMyTodos(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      
+      // Find todos
+      const todos = await Todo.find({ 
+        employee_id: new Types.ObjectId(employeeId) 
+      })
+      .sort({ created_at: -1 });
+      
+      return res.status(200).json({
+        success: true,
+        message: "Todos retrieved successfully",
+        data: todos
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving todos:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving todos",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Create a simple todo task
+   */
+  async createTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { title } = req.body;
+      
+      // Validate required field
+      if (!title) {
+        return res.status(400).json({
+          success: false,
+          message: "Todo title is required"
+        });
+      }
+      
+      // Create todo item
+      const todo = new Todo({
+        employee_id: employeeId,
+        title,
+        completed: false,
+        created_at: new Date()
+      });
+      
+      const savedTodo = await todo.save();
+      
+      return res.status(201).json({
+        success: true,
+        message: "Todo created successfully",
+        data: savedTodo
+      });
+      
+    } catch (error) {
+      console.error('Error creating todo:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error creating todo",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Toggle todo completion status (complete/incomplete)
+   */
+  async toggleTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { todoId } = req.body;
+      
+      // Validate todoId
+      if (!todoId || !Types.ObjectId.isValid(todoId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid todo ID is required"
+        });
+      }
+      
+      // Find the todo
+      const todo = await Todo.findOne({
+        _id: new Types.ObjectId(todoId),
+        employee_id: new Types.ObjectId(employeeId)
+      });
+      
+      if (!todo) {
+        return res.status(404).json({
+          success: false,
+          message: "Todo not found"
+        });
+      }
+      
+      // Toggle completed status
+      todo.completed = !todo.completed;
+      await todo.save();
+      
+      return res.status(200).json({
+        success: true,
+        message: `Todo marked as ${todo.completed ? 'completed' : 'incomplete'}`,
+        data: todo
+      });
+      
+    } catch (error) {
+      console.error('Error toggling todo status:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating todo status",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Delete a todo
+   */
+  async deleteTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { todoId } = req.body;
+      
+      // Validate todoId
+      if (!todoId || !Types.ObjectId.isValid(todoId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid todo ID is required"
+        });
+      }
+      
+      // Delete the todo
+      const result = await Todo.findOneAndDelete({
+        _id: new Types.ObjectId(todoId),
+        employee_id: new Types.ObjectId(employeeId)
+      });
+      
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Todo not found"
+        });
+      }
+      
+      return res.status(200).json({
+        success: true,
+        message: "Todo deleted successfully"
+      });
+      
+    } catch (error) {
+      console.error('Error deleting todo:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting todo",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get employee's attendance summary analytics
+   */
+  async getAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      
+      // Get date ranges
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Start of current week (Sunday)
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      // Start of current month
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      
+      // Get today's attendance record
+      const todayAttendance = await AttendanceLog.findOne({
+        employee_id: employeeId,
+        date: { $gte: today, $lt: tomorrow }
+      });
+  
+      // Calculate today's hours
+      let hoursToday = 0;
+      let currentStatus = 'Not Checked In';
+      let isPunchedIn = false;
+      
+      if (todayAttendance) {
+        if (todayAttendance.punchOut) {
+          // Completed shift
+          hoursToday = todayAttendance.totalHours;
+          currentStatus = todayAttendance.status;
+        } else {
+          // Still punched in - calculate hours up to now
+          isPunchedIn = true;
+          const now = new Date();
+          hoursToday = Number(((now.getTime() - todayAttendance.punchIn.getTime()) / (1000 * 60 * 60)).toFixed(2));
+          currentStatus = 'Working';
+        }
+      }
+  
+      // Get weekly hours
+      const weeklyLogs = await AttendanceLog.find({
+        employee_id: employeeId,
+        date: { $gte: startOfWeek, $lt: tomorrow }
+      });
+      
+      let hoursThisWeek = 0;
+      weeklyLogs.forEach(log => {
+        if (log.punchOut) {
+          hoursThisWeek += log.totalHours;
+        }
+      });
+      
+      // Add today's ongoing hours if still punched in
+      if (isPunchedIn) {
+        hoursThisWeek += hoursToday;
+      }
+  
+      // Get monthly hours and attendance status counts
+      const monthlyLogs = await AttendanceLog.find({
+        employee_id: employeeId,
+        date: { $gte: startOfMonth, $lt: tomorrow }
+      });
+      
+      let hoursThisMonth = 0;
+      monthlyLogs.forEach(log => {
+        if (log.punchOut) {
+          hoursThisMonth += log.totalHours;
+        }
+      });
+      
+      // Add today's ongoing hours if still punched in
+      if (isPunchedIn) {
+        hoursThisMonth += hoursToday;
+      }
+      
+      // Calculate attendance status counts for current month
+      const presentDays = monthlyLogs.filter(log => log.status === 'Present').length;
+      const halfDays = monthlyLogs.filter(log => log.status === 'Half-Day').length;
+      const absentDays = monthlyLogs.filter(log => log.status === 'Absent').length;
+  
+      // Calculate total expected workdays in the month so far
+      const workdaysInMonthSoFar = this.getWeekdaysCount(startOfMonth, today);
+      
+      // Calculate attendance percentage
+      const attendancePercentage = workdaysInMonthSoFar > 0 
+        ? Math.round(((presentDays + (halfDays * 0.5)) / workdaysInMonthSoFar) * 100) 
+        : 0;
+  
+      // Format the time for display
+      const formatTime = (hours: number): string => {
+        const totalMinutes = Math.round(hours * 60);
+        const hrs = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        
+        if (hrs === 0) {
+          return `${mins} minutes`;
+        } else if (mins === 0) {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+        } else {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${mins} minutes`;
+        }
+      };
+      
+      return res.status(200).json({
+        success: true,
+        message: "Attendance analytics retrieved successfully",
+        data: {
+          current: {
+            hoursToday: Number(hoursToday.toFixed(2)),
+            hoursDisplay: formatTime(hoursToday),
+            currentStatus,
+            isPunchedIn
+          },
+          summary: {
+            hoursThisWeek: Number(hoursThisWeek.toFixed(2)),
+            hoursThisWeekDisplay: formatTime(hoursThisWeek),
+            hoursThisMonth: Number(hoursThisMonth.toFixed(2)),
+            hoursThisMonthDisplay: formatTime(hoursThisMonth),
+            attendancePercentage,
+            presentDays,
+            halfDays,
+            absentDays
+          },
+          standardHours: {
+            daily: 8,
+            weekly: 40,
+            monthly: workdaysInMonthSoFar * 8
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving attendance analytics:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving attendance analytics",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+
+  async getWeeklyAttendance(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      
+      // Fix the week start date calculation
+      let startDate: Date;
+      
+      if (req.query.startDate) {
+        // Convert to UTC date to avoid timezone issues
+        const providedDateStr = req.query.startDate as string;
+        const [year, month, day] = providedDateStr.split('-').map(n => parseInt(n));
+        
+        // Create date using UTC methods to avoid timezone shifts
+        // Note: Month is 0-indexed in JavaScript
+        startDate = new Date(Date.UTC(year, month - 1, day));
+        
+        // Get day of week (0 = Sunday, 6 = Saturday in UTC)
+        const dayOfWeek = startDate.getUTCDay();
+        
+        // Adjust to previous Sunday
+        if (dayOfWeek !== 0) {
+          startDate.setUTCDate(startDate.getUTCDate() - dayOfWeek);
+        }
+        
+        console.log("Provided date (UTC):", startDate.toISOString());
+      } else {
+        // Get current date in UTC
+        const today = new Date();
+        const todayUTC = new Date(Date.UTC(
+          today.getUTCFullYear(),
+          today.getUTCMonth(),
+          today.getUTCDate()
+        ));
+        
+        // Get day of week (0 = Sunday, 6 = Saturday in UTC)
+        const dayOfWeek = todayUTC.getUTCDay();
+        
+        // Calculate start of week (Sunday) in UTC
+        startDate = new Date(todayUTC);
+        startDate.setUTCDate(todayUTC.getUTCDate() - dayOfWeek);
+      }
+      
+      // Set time to beginning of day in UTC
+      startDate.setUTCHours(0, 0, 0, 0);
+      
+      // End date is 7 days later (next Sunday) in UTC
+      const endDate = new Date(startDate);
+      endDate.setUTCDate(startDate.getUTCDate() + 6);
+      endDate.setUTCHours(23, 59, 59, 999);
+      
+      console.log("Week start date (UTC):", startDate.toISOString());
+      console.log("Week end date (UTC):", endDate.toISOString());
+      
+      // Get all logs for the week
+      const logs = await AttendanceLog.find({
+        employee_id: employeeId,
+        date: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }).sort({ date: 1 });
+      
+      // Create a map of logs by date string for quicker access
+      const logByDate = new Map();
+      logs.forEach(log => {
+        // Convert to YYYY-MM-DD format in UTC
+        const dateObj = new Date(log.date);
+        const dateString = dateObj.toISOString().split('T')[0];
+        logByDate.set(dateString, log);
+      });
+      
+      // Day names in correct order
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      
+      // Format data specifically for visualization
+      const dailyData = [];
+      let weeklyTotal = 0;
+      
+      for (let i = 0; i < 7; i++) {
+        // Create a new date object for each day of the week
+        const currentDate = new Date(startDate);
+        currentDate.setUTCDate(startDate.getUTCDate() + i);
+        
+        // Format as YYYY-MM-DD for consistency
+        const dateString = currentDate.toISOString().split('T')[0];
+        
+        // Get day of week (0-6)
+        const dayOfWeek = currentDate.getUTCDay();
+        const dayName = dayNames[dayOfWeek];
+        
+        const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+        const log = logByDate.get(dateString);
+        
+        console.log(`Day ${i}: ${dateString} is a ${dayName} (day ${dayOfWeek})`);
+        
+        let hours = 0;
+        let status = 'N/A';
+        
+        if (log) {
+          hours = log.totalHours || 0;
+          status = log.status;
+        }
+        
+        dailyData.push({
+          date: dateString,
+          day: dayName,
+          hours: Number(hours.toFixed(2)),
+          status: status,
+          isWeekday
+        });
+        
+        weeklyTotal += hours;
+      }
+      
+      // Calculate weekly compliance
+      const weekdayCount = dailyData.filter(day => day.isWeekday).length;
+      const expectedHours = weekdayCount * 8;
+      const compliancePercentage = expectedHours > 0 
+        ? Math.min(100, Math.round((weeklyTotal / expectedHours) * 100))
+        : 100;
+
+      // Format time function
+      const formatTime = (hours: number): string => {
+        const totalMinutes = Math.round(hours * 60);
+        const hrs = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        
+        if (hrs === 0) {
+          return `${mins} minutes`;
+        } else if (mins === 0) {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+        } else {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${mins} minutes`;
+        }
+      };
+      
+      // Format daily data with time display
+      const formattedDailyData = dailyData.map(day => ({
+        ...day,
+        hoursDisplay: formatTime(day.hours)
+      }));
+      
+      return res.status(200).json({
+        success: true,
+        message: "Weekly attendance data retrieved successfully",
+        data: {
+          weekRange: {
+            start: startDate.toISOString().split('T')[0],
+            end: endDate.toISOString().split('T')[0]
+          },
+          summary: {
+            totalHours: Number(weeklyTotal.toFixed(2)),
+            totalHoursDisplay: formatTime(weeklyTotal),
+            expectedHours,
+            expectedHoursDisplay: formatTime(expectedHours),
+            compliancePercentage
+          },
+          dailyData: formattedDailyData
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving weekly attendance:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving weekly attendance",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Helper method to count weekdays between two dates
+   */
+  private getWeekdaysCount(startDate: Date, endDate: Date): number {
+    let count = 0;
+    const currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      const dayOfWeek = currentDate.getDay();
+      // Count Monday (1) through Friday (5)
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        count++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return count;
   }
 }
 
