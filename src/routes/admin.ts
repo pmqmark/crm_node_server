@@ -225,6 +225,20 @@ router.post('/get-activity',(req,res)=>{
 })
 
 
+router.post('/get-detailed-invoice',(req,res)=>{
+    adminController.createInvoice1(req,res);
+})
+
+
+router.put('/invoice/:id', (req, res) => {
+    adminController.updateInvoice1(req, res);
+});
+
+
+// router.delete('/invoice/:id', (req, res) => {
+//     adminController.deleteInvoice1(req, res);
+// });
+
 
 
 

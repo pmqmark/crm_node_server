@@ -15,7 +15,7 @@ import AttendanceLog from "../models/logs";
 import Leave, { LeaveType } from "../models/leave";
 import Ticket from '../models/ticket';
 import Invoice from '../models/invoice';
-import { CreateInvoiceDto, UpdateInvoiceDto, GetInvoiceDto, DeleteInvoiceDto } from '../dtos/invoicedto';
+import { CreateInvoiceDto, UpdateInvoiceDto, GetInvoiceDto, DeleteInvoiceDto, detailCreateInvoiceDto } from '../dtos/invoicedto';
 import { AuthRequest } from '../middleware/verifyToken';
 import Task from "../models/tasks";
 import Schedule from "../models/schedules";
@@ -983,6 +983,247 @@ async getProjectCount(req: Request, res: Response): Promise<Response> {
 //         });
 //     }
 // }
+
+
+async createInvoice1(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: Admin ID is missing"
+      });
+    }
+
+    const adminId = req.user.id;
+    const invoiceData: detailCreateInvoiceDto = req.body;
+
+    // Validate required fields
+    if (!invoiceData.client_id || !invoiceData.items || !invoiceData.dueDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Client ID, items array, and due date are required"
+      });
+    }
+
+    // Validate client exists
+    if (!Types.ObjectId.isValid(invoiceData.client_id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid client ID format"
+      });
+    }
+
+    const client = await Client.findById(invoiceData.client_id);
+    if (!client) {
+      return res.status(400).json({
+        success: false,
+        message: "Client not found"
+      });
+    }
+
+    // Validate project if provided
+    if (invoiceData.project_id) {
+      if (!Types.ObjectId.isValid(invoiceData.project_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID format"
+        });
+      }
+
+      const project = await Project.findById(invoiceData.project_id);
+      if (!project) {
+        return res.status(400).json({
+          success: false,
+          message: "Project not found"
+        });
+      }
+    }
+
+    // Validate items array
+    if (!Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one item is required"
+      });
+    }
+
+    // Validate each item
+    for (const item of invoiceData.items) {
+      if (!item.service_name || !item.service_type) {
+        return res.status(400).json({
+          success: false,
+          message: "Each item must have service_name and service_type"
+        });
+      }
+
+      if (item.service_type === 'hourly' && (!item.hours || !item.rate_per_hour)) {
+        return res.status(400).json({
+          success: false,
+          message: "Hourly services require hours and rate_per_hour"
+        });
+      }
+
+      if ((item.service_type === 'fixed' || item.service_type === 'subscription') && !item.fixed_price) {
+        return res.status(400).json({
+          success: false,
+          message: "Fixed and subscription services require fixed_price"
+        });
+      }
+    }
+
+    // Create invoice
+    const invoice = new Invoice({
+      client_id: new Types.ObjectId(invoiceData.client_id),
+      project_id: invoiceData.project_id ? new Types.ObjectId(invoiceData.project_id) : undefined,
+      items: invoiceData.items,
+      tax_rate: invoiceData.tax_rate,
+      description: invoiceData.description,
+      terms: invoiceData.terms,
+      invoiceDate: invoiceData.invoiceDate || new Date(),
+      dueDate: new Date(invoiceData.dueDate),
+      status: 'Pending',
+      createdBy: new Types.ObjectId(adminId),
+      isVisible: true
+    });
+
+    const savedInvoice = await invoice.save();
+
+    // Populate references for response
+    await savedInvoice.populate([
+      { path: 'client_id', select: 'companyName contactPerson email' },
+      { path: 'project_id', select: 'projectName' }
+    ]);
+
+    return res.status(201).json({
+      success: true,
+      message: "Invoice created successfully",
+      data: savedInvoice
+    });
+
+  } catch (error) {
+    console.error('Error creating invoice:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error creating invoice",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+
+async updateInvoice1(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: Admin ID is missing"
+      });
+    }
+
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Validate invoice ID
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid invoice ID format"
+      });
+    }
+
+    // Find existing invoice
+    const existingInvoice = await Invoice.findById(id);
+    if (!existingInvoice) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found"
+      });
+    }
+
+    // Handle soft delete if isVisible is provided
+    if (typeof updateData.isVisible === 'boolean') {
+      updateData.updatedAt = new Date();
+    }
+
+    // Validate items if included in update
+    if (updateData.items) {
+      if (!Array.isArray(updateData.items) || updateData.items.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "At least one item is required"
+        });
+      }
+
+      // Validate each item
+      for (const item of updateData.items) {
+        if (!item.service_name || !item.service_type) {
+          return res.status(400).json({
+            success: false,
+            message: "Each item must have service_name and service_type"
+          });
+        }
+
+        if (item.service_type === 'hourly' && (!item.hours || !item.rate_per_hour)) {
+          return res.status(400).json({
+            success: false,
+            message: "Hourly services require hours and rate_per_hour"
+          });
+        }
+
+        if ((item.service_type === 'fixed' || item.service_type === 'subscription') && !item.fixed_price) {
+          return res.status(400).json({
+            success: false,
+            message: "Fixed and subscription services require fixed_price"
+          });
+        }
+      }
+    }
+
+    // Handle status update
+    if (updateData.status === 'Paid' && !updateData.paymentDate) {
+      updateData.paymentDate = new Date();
+    }
+
+    // Update invoice
+    const updatedInvoice = await Invoice.findByIdAndUpdate(
+      id,
+      { 
+        $set: {
+          ...updateData,
+          updatedAt: new Date()
+        }
+      },
+      { 
+        new: true,
+        runValidators: true
+      }
+    ).populate([
+      { path: 'client_id', select: 'companyName contactPerson email' },
+      { path: 'project_id', select: 'projectName' }
+    ]);
+
+    if (!updatedInvoice) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Invoice updated successfully",
+      data: updatedInvoice
+    });
+
+  } catch (error) {
+    console.error('Error updating invoice:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error updating invoice",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
 
 async getProjectTasks(req: Request, res: Response): Promise<Response> {
   try {
