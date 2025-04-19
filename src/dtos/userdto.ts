@@ -30,6 +30,7 @@ export interface IUser extends Document {
     country: string;
     postalcode: string;
     employeebio: string;
+    status: 'Full-Time' | 'Contract' | 'Probation' | 'WFH';
   }
   
 export interface CreateUserDto {

@@ -114,6 +114,19 @@ router.delete('/delete-ticket', (req, res) => {
   adminController.deleteTicket(req, res);
 });
 
+
+router.post('/ticket-details', (req, res) => {
+  adminController.getTicketDetails(req, res);
+});
+
+router.post('/ticket-comment', authMiddleware, (req, res) => {
+    adminController.addTicketComment(req, res);
+  });
+
+router.post('/ticket-timeline', (req, res) => {
+    adminController.getTicketTimeline(req, res);
+  });
+
 // Invoice routes
 router.post('/create-invoice', (req, res) => {
   adminController.createInvoice(req, res);
@@ -134,6 +147,99 @@ router.put('/update-invoice', (req, res) => {
 router.delete('/delete-invoice', (req, res) => {
   adminController.deleteInvoice(req, res);
 });
+
+
+router.get('/get-employee-statis',(req,res)=>{
+    adminController.getEmployeeStatusCount(req,res)
+})
+
+
+router.get('/attendance/daily',(req,res)=>{
+    adminController.getDailyAttendance(req,res)
+})
+
+router.get('/attendance/weekly',(req,res)=>{
+    adminController.getWeeklyAttendance(req,res)
+})
+
+
+router.get('/attendance/monthly',(req,res)=>{
+    adminController.getMonthlyAttendance(req,res)
+})
+
+// router.get('/get-log',(req,res)=>{
+//     adminController.getDatabaseLogs(req,res)
+// })
+
+router.post('/create-schedule',(req,res)=>{
+    adminController.createSchedule(req,res)
+})
+
+router.get('/get-task-stat',(req,res)=>{
+    adminController.getTaskStatistics(req,res)
+})
+
+
+router.get('/get-schedule',(req,res)=>{
+    adminController.listSchedules(req,res)
+})
+
+router.get('/total-project',(req,res)=>{
+    adminController.getProjectCount(req,res)
+})
+
+router.get('/total-client',(req,res)=>{
+    adminController.getClientCount(req,res)
+})
+
+router.get('/project-details-teams',(req,rees)=>{
+    adminController.getProjectDetails(req,rees)
+})
+
+router.post('/update-project',(req,res)=>{
+adminController.updateProject(req,res)
+})
+
+
+router.post('/add-task',(req,res)=>{
+    adminController.assignTask(req,res)
+})
+
+router.post('/get-project-tasks-stats',(req,res)=>{
+    adminController.getProjectTaskStatistics(req,res)
+})
+
+
+router.post('/get-project-tasks',(req,res)=>{
+    adminController.getProjectTasks(req,res)
+})
+
+router.post('/get-teams',(req,res)=>{
+    adminController.getProjectDetails(req,res)
+})
+
+router.post('/add-project-manager',(req,res)=>{
+    adminController.addProjectManager(req,res)
+})
+
+
+router.post('/add-team-leader',(req,res)=>{
+    adminController.addTeamLeader(req,res)
+})
+
+
+router.post('/add-team-member',(req,res)=>{
+    adminController.addTeamMember(req,res)
+})
+
+
+router.post('/get-activity',(req,res)=>{
+    adminController.getLatestCompletedTasks(req,res)
+})
+
+
+
+
 
 export default router;
 

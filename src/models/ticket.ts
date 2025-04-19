@@ -10,7 +10,10 @@ export interface ITicket extends Document {
   createdAt: Date;
   updatedAt: Date;
   assignedTo?: mongoose.Types.ObjectId;
+  clientResolved: boolean; 
+  clientResolvedAt?: Date;
   comments?: Array<{
+    _id?: mongoose.Types.ObjectId;
     text: string;
     createdBy: mongoose.Types.ObjectId;
     createdAt: Date;
@@ -35,7 +38,7 @@ const TicketCounter = mongoose.model('TicketCounter', TicketCounterSchema);
 const ticketSchema = new Schema<ITicket>({
   ticketCode: {
     type: String,
-    required: false  // Change to false initially
+    required: false 
   },
   client_id: {
     type: Schema.Types.ObjectId,
@@ -66,6 +69,14 @@ const ticketSchema = new Schema<ITicket>({
   assignedTo: {
     type: Schema.Types.ObjectId,
     ref: 'Employee',
+    required: false
+  },
+  clientResolved: {
+    type: Boolean,
+    default: false
+  },
+  clientResolvedAt: {
+    type: Date,
     required: false
   },
   comments: [{

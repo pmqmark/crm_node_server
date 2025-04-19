@@ -70,4 +70,68 @@ router.get("/my-profile", (req, res) => {
     employeeController.getMyProfile(req, res);
 });
 
+router.get("/department-colleagues", authMiddleware, (req, res) => {
+    employeeController.getDepartmentColleagues(req, res);
+});
+
+router.get("/my-skills", authMiddleware, (req, res) => {
+    employeeController.getMySkills(req, res);
+});
+
+router.post("/add-skill", authMiddleware, (req, res) => {
+    employeeController.addSkill(req, res);
+});
+
+router.put("/update-skill", authMiddleware, (req, res) => {
+    employeeController.updateSkill(req, res);
+});
+
+router.delete("/delete-skill", authMiddleware, (req, res) => {
+    employeeController.deleteSkill(req, res);
+});
+
+router.get("/todos", authMiddleware, (req, res) => {
+  employeeController.getMyTodos(req, res);
+});
+
+router.post("/todos", authMiddleware, (req, res) => {
+  employeeController.createTodo(req, res);
+});
+
+router.patch("/todos/toggle", authMiddleware, (req, res) => {
+  employeeController.toggleTodo(req, res);
+});
+
+router.delete("/todos", authMiddleware, (req, res) => {
+  employeeController.deleteTodo(req, res);
+});
+
+router.get("/attendance-analytics", authMiddleware, (req, res) => {
+  employeeController.getAttendanceAnalytics(req, res);
+});
+
+// Get detailed weekly attendance data for charts
+router.get("/weekly-attendance", authMiddleware, (req, res) => {
+  employeeController.getWeeklyAttendance(req, res);
+});
+
+router.get('/tickets', authMiddleware, (req, res) => {
+    employeeController.getAssignedTickets(req, res);
+  });
+ 
+router.post('/ticket-comment', authMiddleware, (req, res) => {
+    employeeController.addTicketComment(req, res);
+  });
+
+router.post('/ticket-details', authMiddleware, (req, res) => {
+    employeeController.getTicketDetails(req, res);
+  });
+router.post('/update-ticket-status', authMiddleware, (req, res) => {
+    employeeController.updateTicketStatus(req, res);
+  });
+
+router.post('/ticket-timeline', (req, res) => {
+   employeeController.getTicketTimeline(req, res);
+  });
+
 export default router;

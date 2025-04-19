@@ -9,6 +9,11 @@ import AttendanceLog from '../models/logs';
 import Leave, { LeaveType } from '../models/leave';
 import { Project } from '../models/projects';
 import Task from '../models/tasks';
+import Skill from '../models/skill';
+import Todo from '../models/todo';
+import Ticket from '../models/ticket';
+import Admin from "../models/admin";
+import { Client } from "../models/client";
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -166,6 +171,7 @@ export class EmployeeController {
       });
     }
   }
+  
  
   
 
@@ -1091,6 +1097,1710 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
       return res.status(500).json({
         success: false,
         message: "Error retrieving employee profile",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get all colleagues in the same department, properly sorted and deduplicated
+   * Returns department manager first, then team leads, then regular employees
+   * Includes current user information
+   */
+  async getDepartmentColleagues(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+  
+      // Get the current employee with their role details
+      const currentEmployee = await Employee.findById(employeeId)
+        .populate('role_id', 'name')
+        .populate('department_id', 'name description');
+  
+      if (!currentEmployee) {
+        return res.status(404).json({
+          success: false,
+          message: "Employee not found"
+        });
+      }
+  
+      // Check if employee has a department assigned
+      if (!currentEmployee.department_id) {
+        return res.status(400).json({
+          success: false,
+          message: "You are not assigned to any department"
+        });
+      }
+  
+      // Safe way to access department_id properties with proper type handling
+      const departmentId = typeof currentEmployee.department_id === 'string' 
+        ? currentEmployee.department_id 
+        : (currentEmployee.department_id as any)._id;
+  
+      // Get department details including the manager
+      const department = await Department.findById(departmentId)
+        .populate('manager_id', 'firstName lastName employee_id email phone');
+  
+      if (!department) {
+        return res.status(404).json({
+          success: false,
+          message: "Department not found"
+        });
+      }
+  
+      // Find all employees in the same department (including current user)
+      const departmentEmployees = await Employee.find({ 
+        department_id: departmentId
+      })
+      .populate('role_id', 'name')
+      .select('firstName lastName employee_id email phone role_id')
+      .lean();
+  
+      // Get all roles to check for team leads
+      const roles = await Role.find({});
+      
+      // Identify team lead roles (contains 'lead' or 'senior' in name)
+      const teamLeadRoleIds = roles
+        .filter(role => role.name.toLowerCase().includes('lead') || 
+                      role.name.toLowerCase().includes('senior'))
+        .map(role => role._id.toString());
+  
+      // Create a set of processed IDs to avoid duplicates
+      const processedEmployeeIds = new Set<string>();
+      const formattedEmployees: any[] = [];
+  
+      // First, add the manager if exists (and not the current employee)
+      if (department.manager_id) {
+        // Safe way to handle manager_id with proper type checking
+        const managerId = typeof department.manager_id === 'string'
+          ? department.manager_id
+          : (department.manager_id as any)._id.toString();
+          
+        const manager = departmentEmployees.find(emp => emp._id.toString() === managerId);
+        
+        if (manager) {
+          // Don't exclude the manager if they're the current employee - we'll handle this specifically 
+          processedEmployeeIds.add(managerId);
+  
+          const roleObj = manager.role_id && typeof manager.role_id !== 'string' ? manager.role_id : null;
+          const roleName = roleObj && (roleObj as any).name ? (roleObj as any).name : 'Department Manager';
+  
+          formattedEmployees.push({
+            id: manager._id,
+            name: `${manager.firstName || ''} ${manager.lastName || ''}`.trim(),
+            employee_id: manager.employee_id || '',
+            email: manager.email || '',
+            phone: manager.phone || '',
+            role: roleName,
+            isManager: true,
+            isTeamLead: false
+          });
+        }
+      }
+  
+      // Add team leads next (not already added, not the current employee)
+      departmentEmployees.forEach(emp => {
+        // Skip if already processed
+        if (processedEmployeeIds.has(emp._id.toString())) {
+          return;
+        }
+  
+        let isTeamLead = false;
+        let roleName = 'No Role';
+  
+        if (emp.role_id) {
+          // Safe way to handle role_id with proper type checking
+          const roleObj = typeof emp.role_id !== 'string' ? emp.role_id : null;
+          roleName = roleObj && (roleObj as any).name ? (roleObj as any).name : 'No Role';
+          
+          const roleId = roleObj ? (roleObj as any)._id.toString() : '';
+          isTeamLead = teamLeadRoleIds.includes(roleId);
+        }
+  
+        // Only add team leads in this pass
+        if (isTeamLead) {
+          processedEmployeeIds.add(emp._id.toString());
+          
+          formattedEmployees.push({
+            id: emp._id,
+            name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+            employee_id: emp.employee_id || '',
+            email: emp.email || '',
+            phone: emp.phone || '',
+            role: roleName,
+            isManager: false,
+            isTeamLead: true
+          });
+        }
+      });
+  
+      // Add remaining regular employees (alphabetically)
+      const regularEmployees = departmentEmployees
+        .filter(emp => !processedEmployeeIds.has(emp._id.toString()))
+        .sort((a, b) => {
+          const aName = a.firstName || '';
+          const bName = b.firstName || '';
+          return aName.localeCompare(bName);
+        });
+  
+      regularEmployees.forEach(emp => {
+        let roleName = 'No Role';
+        
+        if (emp.role_id) {
+          // Safe way to handle role_id with proper type checking
+          const roleObj = typeof emp.role_id !== 'string' ? emp.role_id : null;
+          roleName = roleObj && (roleObj as any).name ? (roleObj as any).name : 'No Role';
+        }
+        
+        formattedEmployees.push({
+          id: emp._id,
+          name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+          employee_id: emp.employee_id || '',
+          email: emp.email || '',
+          phone: emp.phone || '',
+          role: roleName,
+          isManager: false,
+          isTeamLead: false
+        });
+      });
+  
+      // Extract the current employee
+      const currentEmployeeInfo = formattedEmployees.find(
+        emp => emp.id.toString() === employeeId.toString()
+      );
+      
+      // Remove current employee from colleagues list
+      const colleagues = formattedEmployees.filter(
+        emp => emp.id.toString() !== employeeId.toString()
+      );
+  
+      // Get role info for current user using type-safe approach
+      let currentUserRole = 'No Role';
+      let isCurrentUserManager = false;
+      let isCurrentUserTeamLead = false;
+      
+      if (currentEmployee.role_id) {
+        // Safe way to handle role_id with proper type checking
+        const roleObj = currentEmployee.role_id;
+        currentUserRole = typeof roleObj === 'string' 
+          ? 'No Role' 
+          : ((roleObj as any).name || 'No Role');
+        
+        // Check if team lead
+        const roleId = typeof roleObj === 'string' 
+          ? roleObj 
+          : (roleObj as any)._id.toString();
+          
+        if (roleId && teamLeadRoleIds.includes(roleId)) {
+          isCurrentUserTeamLead = true;
+        }
+      }
+      
+      // Check if department manager with proper type safety
+      if (department.manager_id) {
+        const managerId = typeof department.manager_id === 'string'
+          ? department.manager_id
+          : (department.manager_id as any)._id.toString();
+          
+        isCurrentUserManager = managerId === employeeId.toString();
+      }
+  
+      // Safe way to access department properties
+      const departmentName = department.name || '';
+      const departmentDescription = department.description || '';
+  
+      return res.status(200).json({
+        success: true,
+        message: "Department colleagues retrieved successfully",
+        data: {
+          department: {
+            id: department._id,
+            name: departmentName,
+            description: departmentDescription
+          },
+          currentUser: {
+            id: currentEmployee._id,
+            name: `${currentEmployee.firstName} ${currentEmployee.lastName}`,
+            employee_id: currentEmployee.employee_id,
+            email: currentEmployee.email,
+            phone: currentEmployee.phone || '',
+            role: currentUserRole,
+            isManager: isCurrentUserManager,
+            isTeamLead: isCurrentUserTeamLead
+          },
+          colleagues
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving department colleagues:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving department colleagues",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Add a new skill for the employee
+   */
+  async addSkill(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { name, proficiency } = req.body;
+  
+      // Validate required fields
+      if (!name) {
+        return res.status(400).json({
+          success: false,
+          message: "Skill name is required"
+        });
+      }
+  
+      // Validate proficiency is one of the allowed values
+      const allowedProficiencies = [0, 25, 50, 75, 100];
+      const proficiencyValue = proficiency ? Number(proficiency) : 0;
+      
+      if (!allowedProficiencies.includes(proficiencyValue)) {
+        return res.status(400).json({
+          success: false,
+          message: "Proficiency must be one of: 0, 25, 50, 75, 100"
+        });
+      }
+  
+      // Check if skill already exists for this employee
+      const existingSkill = await Skill.findOne({
+        employee_id: new Types.ObjectId(employeeId),
+        name: name
+      });
+  
+      if (existingSkill) {
+        return res.status(400).json({
+          success: false,
+          message: "You already have this skill registered. Use update instead."
+        });
+      }
+  
+      // Create the skill
+      const skill = new Skill({
+        employee_id: new Types.ObjectId(employeeId),
+        name,
+        proficiency: proficiencyValue,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+  
+      const savedSkill = await skill.save();
+  
+      return res.status(201).json({
+        success: true,
+        message: "Skill added successfully",
+        data: {
+          id: savedSkill._id,
+          name: savedSkill.name,
+          proficiency: savedSkill.proficiency,
+          created_at: savedSkill.created_at,
+          updated_at: savedSkill.updated_at
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error adding skill:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error adding skill",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Update an existing skill's proficiency
+   */
+  async updateSkill(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { skillId, proficiency } = req.body;
+  
+      // Validate required fields
+      if (!skillId || !Types.ObjectId.isValid(skillId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid skill ID is required"
+        });
+      }
+  
+      // Validate proficiency is one of the allowed values
+      const allowedProficiencies = [0, 25, 50, 75, 100];
+      const proficiencyValue = Number(proficiency);
+      
+      if (!allowedProficiencies.includes(proficiencyValue)) {
+        return res.status(400).json({
+          success: false,
+          message: "Proficiency must be one of: 0, 25, 50, 75, 100"
+        });
+      }
+  
+      // Find the skill and ensure it belongs to the employee
+      const skill = await Skill.findOne({
+        _id: new Types.ObjectId(skillId),
+        employee_id: new Types.ObjectId(employeeId)
+      });
+  
+      if (!skill) {
+        return res.status(404).json({
+          success: false,
+          message: "Skill not found or you don't have permission to edit it"
+        });
+      }
+  
+      // Update the skill
+      skill.proficiency = proficiencyValue;
+      skill.updated_at = new Date();
+      await skill.save();
+  
+      return res.status(200).json({
+        success: true,
+        message: "Skill updated successfully",
+        data: {
+          id: skill._id,
+          name: skill.name,
+          proficiency: skill.proficiency,
+          created_at: skill.created_at,
+          updated_at: skill.updated_at
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error updating skill:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating skill",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Delete an existing skill
+   */
+  async deleteSkill(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { skillId } = req.body;
+  
+      // Validate required fields
+      if (!skillId || !Types.ObjectId.isValid(skillId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid skill ID is required"
+        });
+      }
+  
+      // Find and delete the skill, ensuring it belongs to the employee
+      const result = await Skill.findOneAndDelete({
+        _id: new Types.ObjectId(skillId),
+        employee_id: new Types.ObjectId(employeeId)
+      });
+  
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Skill not found or you don't have permission to delete it"
+        });
+      }
+  
+      return res.status(200).json({
+        success: true,
+        message: "Skill deleted successfully"
+      });
+  
+    } catch (error) {
+      console.error('Error deleting skill:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting skill",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Get all skills for the current employee
+   */
+  async getMySkills(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+  
+      // Find all skills for this employee, sorted by name
+      const skills = await Skill.find({
+        employee_id: new Types.ObjectId(employeeId)
+      }).sort({ name: 1 });
+  
+      return res.status(200).json({
+        success: true,
+        message: "Skills retrieved successfully",
+        data: skills
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving skills:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving skills",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async getMyTodos(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      
+      // Find todos
+      const todos = await Todo.find({ 
+        employee_id: new Types.ObjectId(employeeId) 
+      })
+      .sort({ created_at: -1 });
+      
+      return res.status(200).json({
+        success: true,
+        message: "Todos retrieved successfully",
+        data: todos
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving todos:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving todos",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Create a simple todo task
+   */
+  async createTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { title } = req.body;
+      
+      // Validate required field
+      if (!title) {
+        return res.status(400).json({
+          success: false,
+          message: "Todo title is required"
+        });
+      }
+      
+      // Create todo item
+      const todo = new Todo({
+        employee_id: employeeId,
+        title,
+        completed: false,
+        created_at: new Date()
+      });
+      
+      const savedTodo = await todo.save();
+      
+      return res.status(201).json({
+        success: true,
+        message: "Todo created successfully",
+        data: savedTodo
+      });
+      
+    } catch (error) {
+      console.error('Error creating todo:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error creating todo",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Toggle todo completion status (complete/incomplete)
+   */
+  async toggleTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { todoId } = req.body;
+      
+      // Validate todoId
+      if (!todoId || !Types.ObjectId.isValid(todoId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid todo ID is required"
+        });
+      }
+      
+      // Find the todo
+      const todo = await Todo.findOne({
+        _id: new Types.ObjectId(todoId),
+        employee_id: new Types.ObjectId(employeeId)
+      });
+      
+      if (!todo) {
+        return res.status(404).json({
+          success: false,
+          message: "Todo not found"
+        });
+      }
+      
+      // Toggle completed status
+      todo.completed = !todo.completed;
+      await todo.save();
+      
+      return res.status(200).json({
+        success: true,
+        message: `Todo marked as ${todo.completed ? 'completed' : 'incomplete'}`,
+        data: todo
+      });
+      
+    } catch (error) {
+      console.error('Error toggling todo status:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating todo status",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Delete a todo
+   */
+  async deleteTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { todoId } = req.body;
+      
+      // Validate todoId
+      if (!todoId || !Types.ObjectId.isValid(todoId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid todo ID is required"
+        });
+      }
+      
+      // Delete the todo
+      const result = await Todo.findOneAndDelete({
+        _id: new Types.ObjectId(todoId),
+        employee_id: new Types.ObjectId(employeeId)
+      });
+      
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Todo not found"
+        });
+      }
+      
+      return res.status(200).json({
+        success: true,
+        message: "Todo deleted successfully"
+      });
+      
+    } catch (error) {
+      console.error('Error deleting todo:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting todo",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get employee's attendance summary analytics
+   */
+  async getAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      
+      // Get date ranges
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Start of current week (Sunday)
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      // Start of current month
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      
+      // Get today's attendance record
+      const todayAttendance = await AttendanceLog.findOne({
+        employee_id: employeeId,
+        date: { $gte: today, $lt: tomorrow }
+      });
+  
+      // Calculate today's hours
+      let hoursToday = 0;
+      let currentStatus = 'Not Checked In';
+      let isPunchedIn = false;
+      
+      if (todayAttendance) {
+        if (todayAttendance.punchOut) {
+          // Completed shift
+          hoursToday = todayAttendance.totalHours;
+          currentStatus = todayAttendance.status;
+        } else {
+          // Still punched in - calculate hours up to now
+          isPunchedIn = true;
+          const now = new Date();
+          hoursToday = Number(((now.getTime() - todayAttendance.punchIn.getTime()) / (1000 * 60 * 60)).toFixed(2));
+          currentStatus = 'Working';
+        }
+      }
+  
+      // Get weekly hours
+      const weeklyLogs = await AttendanceLog.find({
+        employee_id: employeeId,
+        date: { $gte: startOfWeek, $lt: tomorrow }
+      });
+      
+      let hoursThisWeek = 0;
+      weeklyLogs.forEach(log => {
+        if (log.punchOut) {
+          hoursThisWeek += log.totalHours;
+        }
+      });
+      
+      // Add today's ongoing hours if still punched in
+      if (isPunchedIn) {
+        hoursThisWeek += hoursToday;
+      }
+  
+      // Get monthly hours and attendance status counts
+      const monthlyLogs = await AttendanceLog.find({
+        employee_id: employeeId,
+        date: { $gte: startOfMonth, $lt: tomorrow }
+      });
+      
+      let hoursThisMonth = 0;
+      monthlyLogs.forEach(log => {
+        if (log.punchOut) {
+          hoursThisMonth += log.totalHours;
+        }
+      });
+      
+      // Add today's ongoing hours if still punched in
+      if (isPunchedIn) {
+        hoursThisMonth += hoursToday;
+      }
+      
+      // Calculate attendance status counts for current month
+      const presentDays = monthlyLogs.filter(log => log.status === 'Present').length;
+      const halfDays = monthlyLogs.filter(log => log.status === 'Half-Day').length;
+      const absentDays = monthlyLogs.filter(log => log.status === 'Absent').length;
+  
+      // Calculate total expected workdays in the month so far
+      const workdaysInMonthSoFar = this.getWeekdaysCount(startOfMonth, today);
+      
+      // Calculate attendance percentage
+      const attendancePercentage = workdaysInMonthSoFar > 0 
+        ? Math.round(((presentDays + (halfDays * 0.5)) / workdaysInMonthSoFar) * 100) 
+        : 0;
+  
+      // Format the time for display
+      const formatTime = (hours: number): string => {
+        const totalMinutes = Math.round(hours * 60);
+        const hrs = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        
+        if (hrs === 0) {
+          return `${mins} minutes`;
+        } else if (mins === 0) {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+        } else {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${mins} minutes`;
+        }
+      };
+      
+      return res.status(200).json({
+        success: true,
+        message: "Attendance analytics retrieved successfully",
+        data: {
+          current: {
+            hoursToday: Number(hoursToday.toFixed(2)),
+            hoursDisplay: formatTime(hoursToday),
+            currentStatus,
+            isPunchedIn
+          },
+          summary: {
+            hoursThisWeek: Number(hoursThisWeek.toFixed(2)),
+            hoursThisWeekDisplay: formatTime(hoursThisWeek),
+            hoursThisMonth: Number(hoursThisMonth.toFixed(2)),
+            hoursThisMonthDisplay: formatTime(hoursThisMonth),
+            attendancePercentage,
+            presentDays,
+            halfDays,
+            absentDays
+          },
+          standardHours: {
+            daily: 8,
+            weekly: 40,
+            monthly: workdaysInMonthSoFar * 8
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving attendance analytics:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving attendance analytics",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+
+  async getWeeklyAttendance(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      
+      // Fix the week start date calculation
+      let startDate: Date;
+      
+      if (req.query.startDate) {
+        // Convert to UTC date to avoid timezone issues
+        const providedDateStr = req.query.startDate as string;
+        const [year, month, day] = providedDateStr.split('-').map(n => parseInt(n));
+        
+        // Create date using UTC methods to avoid timezone shifts
+        // Note: Month is 0-indexed in JavaScript
+        startDate = new Date(Date.UTC(year, month - 1, day));
+        
+        // Get day of week (0 = Sunday, 6 = Saturday in UTC)
+        const dayOfWeek = startDate.getUTCDay();
+        
+        // Adjust to previous Sunday
+        if (dayOfWeek !== 0) {
+          startDate.setUTCDate(startDate.getUTCDate() - dayOfWeek);
+        }
+        
+        console.log("Provided date (UTC):", startDate.toISOString());
+      } else {
+        // Get current date in UTC
+        const today = new Date();
+        const todayUTC = new Date(Date.UTC(
+          today.getUTCFullYear(),
+          today.getUTCMonth(),
+          today.getUTCDate()
+        ));
+        
+        // Get day of week (0 = Sunday, 6 = Saturday in UTC)
+        const dayOfWeek = todayUTC.getUTCDay();
+        
+        // Calculate start of week (Sunday) in UTC
+        startDate = new Date(todayUTC);
+        startDate.setUTCDate(todayUTC.getUTCDate() - dayOfWeek);
+      }
+      
+      // Set time to beginning of day in UTC
+      startDate.setUTCHours(0, 0, 0, 0);
+      
+      // End date is 7 days later (next Sunday) in UTC
+      const endDate = new Date(startDate);
+      endDate.setUTCDate(startDate.getUTCDate() + 6);
+      endDate.setUTCHours(23, 59, 59, 999);
+      
+      console.log("Week start date (UTC):", startDate.toISOString());
+      console.log("Week end date (UTC):", endDate.toISOString());
+      
+      // Get all logs for the week
+      const logs = await AttendanceLog.find({
+        employee_id: employeeId,
+        date: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }).sort({ date: 1 });
+      
+      // Create a map of logs by date string for quicker access
+      const logByDate = new Map();
+      logs.forEach(log => {
+        // Convert to YYYY-MM-DD format in UTC
+        const dateObj = new Date(log.date);
+        const dateString = dateObj.toISOString().split('T')[0];
+        logByDate.set(dateString, log);
+      });
+      
+      // Day names in correct order
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      
+      // Format data specifically for visualization
+      const dailyData = [];
+      let weeklyTotal = 0;
+      
+      for (let i = 0; i < 7; i++) {
+        // Create a new date object for each day of the week
+        const currentDate = new Date(startDate);
+        currentDate.setUTCDate(startDate.getUTCDate() + i);
+        
+        // Format as YYYY-MM-DD for consistency
+        const dateString = currentDate.toISOString().split('T')[0];
+        
+        // Get day of week (0-6)
+        const dayOfWeek = currentDate.getUTCDay();
+        const dayName = dayNames[dayOfWeek];
+        
+        const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+        const log = logByDate.get(dateString);
+        
+        console.log(`Day ${i}: ${dateString} is a ${dayName} (day ${dayOfWeek})`);
+        
+        let hours = 0;
+        let status = 'N/A';
+        
+        if (log) {
+          hours = log.totalHours || 0;
+          status = log.status;
+        }
+        
+        dailyData.push({
+          date: dateString,
+          day: dayName,
+          hours: Number(hours.toFixed(2)),
+          status: status,
+          isWeekday
+        });
+        
+        weeklyTotal += hours;
+      }
+      
+      // Calculate weekly compliance
+      const weekdayCount = dailyData.filter(day => day.isWeekday).length;
+      const expectedHours = weekdayCount * 8;
+      const compliancePercentage = expectedHours > 0 
+        ? Math.min(100, Math.round((weeklyTotal / expectedHours) * 100))
+        : 100;
+
+      const formatTime = (hours: number): string => {
+        const totalMinutes = Math.round(hours * 60);
+        const hrs = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        
+        if (hrs === 0) {
+          return `${mins} minutes`;
+        } else if (mins === 0) {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+        } else {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${mins} minutes`;
+        }
+      };
+      
+      const formattedDailyData = dailyData.map(day => ({
+        ...day,
+        hoursDisplay: formatTime(day.hours)
+      }));
+      
+      return res.status(200).json({
+        success: true,
+        message: "Weekly attendance data retrieved successfully",
+        data: {
+          weekRange: {
+            start: startDate.toISOString().split('T')[0],
+            end: endDate.toISOString().split('T')[0]
+          },
+          summary: {
+            totalHours: Number(weeklyTotal.toFixed(2)),
+            totalHoursDisplay: formatTime(weeklyTotal),
+            expectedHours,
+            expectedHoursDisplay: formatTime(expectedHours),
+            compliancePercentage
+          },
+          dailyData: formattedDailyData
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving weekly attendance:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving weekly attendance",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+  /**
+   * Helper method to count weekdays between two dates
+   */
+  private getWeekdaysCount(startDate: Date, endDate: Date): number {
+    let count = 0;
+    const currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      const dayOfWeek = currentDate.getDay();
+      // Count Monday (1) through Friday (5)
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        count++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return count;
+  }
+
+  /**
+   * Add a comment to a ticket assigned to the employee
+   */
+  async addTicketComment(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+      
+      const employeeId = req.user.id;
+      const { ticketId, comment } = req.body;
+      
+      // Validate required fields
+      if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid ticket ID is required"
+        });
+      }
+      
+      if (!comment || !comment.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Comment text is required"
+        });
+      }
+      
+      // Find the ticket and verify employee has access (is assigned to it)
+      const ticket = await Ticket.findOne({
+        _id: new Types.ObjectId(ticketId),
+        assignedTo: new Types.ObjectId(employeeId)
+      });
+      
+      if (!ticket) {
+        return res.status(404).json({
+          success: false,
+          message: "Ticket not found or you're not assigned to this ticket"
+        });
+      }
+      
+      // Get employee details to include with comment
+      const employee = await Employee.findById(employeeId)
+        .select('firstName lastName');
+        
+      if (!employee) {
+        return res.status(500).json({
+          success: false,
+          message: "Employee details not found"
+        });
+      }
+      
+      // Add comment to ticket
+      ticket.comments = ticket.comments || [];
+      const newComment = {
+        text: comment,
+        createdBy: new Types.ObjectId(employeeId),
+        createdAt: new Date()
+      };
+      
+      ticket.comments.push(newComment);
+      await ticket.save();
+      
+      const addedComment = ticket.comments[ticket.comments.length - 1];
+      
+      return res.status(201).json({
+        success: true,
+        message: "Comment added successfully",
+        data: {
+          commentId: addedComment._id,
+          text: comment,
+          createdAt: newComment.createdAt,
+          authorName: `${employee.firstName} ${employee.lastName}`,
+          commentCount: ticket.comments.length
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error adding ticket comment:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error adding comment to ticket",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get ticket details with all comments for the assigned employee
+   */
+  async getTicketDetails(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+      
+      const employeeId = req.user.id;
+      const { ticketId } = req.body; // Changed from req.params to req.body for consistency with admin implementation
+      
+      if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid ticket ID is required"
+        });
+      }
+      
+      // Find ticket assigned to this employee
+      const ticket = await Ticket.findOne({
+        _id: new Types.ObjectId(ticketId),
+        assignedTo: new Types.ObjectId(employeeId)
+      }).populate('client_id', 'companyName contactPerson');
+      
+      if (!ticket) {
+        return res.status(404).json({
+          success: false,
+          message: "Ticket not found or not assigned to you"
+        });
+      }
+      
+      // Get all comment author details
+      const commentUserIds = ticket.comments?.map(comment => comment.createdBy.toString()) || [];
+      
+      if (commentUserIds.length === 0) {
+        // No comments case - early return
+        return res.status(200).json({
+          success: true,
+          message: "Ticket details retrieved successfully",
+          data: {
+            id: ticket._id,
+            ticketCode: ticket.ticketCode,
+            title: ticket.title,
+            description: ticket.description,
+            priority: ticket.priority,
+            status: ticket.status,
+            createdAt: ticket.createdAt,
+            client: ticket.client_id,
+            comments: [],
+            commentCount: 0
+          }
+        });
+      }
+      
+      const Employee = require('../models/employee').default;
+      const Admin = require('../models/admin').default;
+      const { Client } = require('../models/client');
+      
+      interface IAuthor {
+        _id: Types.ObjectId;
+        [key: string]: any; // Additional fields
+      }
+      
+      const [employeeAuthors, clientAuthors, adminAuthors] = await Promise.all([
+        Employee.find({ 
+          _id: { $in: commentUserIds.map(id => new Types.ObjectId(id)) } 
+        }).select('_id firstName lastName').lean() as Promise<IAuthor[]>,
+        
+        Client.find({ 
+          _id: { $in: commentUserIds.map(id => new Types.ObjectId(id)) } 
+        }).select('_id companyName contactPerson').lean() as Promise<IAuthor[]>,
+        
+        Admin.find({ 
+          _id: { $in: commentUserIds.map(id => new Types.ObjectId(id)) } 
+        }).select('_id').lean() as Promise<IAuthor[]>
+      ]);
+      
+      // Create maps for quick lookup with proper typing
+      const employeeMap = new Map<string, string>();
+      employeeAuthors.forEach((emp: IAuthor) => {
+        employeeMap.set(
+          emp._id.toString(), 
+          `${emp.firstName} ${emp.lastName}`
+        );
+      });
+      
+      const clientMap = new Map<string, string>();
+      clientAuthors.forEach((client: IAuthor) => {
+        clientMap.set(
+          client._id.toString(),
+          client.contactPerson || client.companyName
+        );
+      });
+      
+      const adminMap = new Map<string, string>();
+      adminAuthors.forEach((admin: IAuthor) => {
+        adminMap.set(admin._id.toString(), "Admin");
+      });
+      
+      // Format comments with author names with proper typing
+      const formattedComments = (ticket.comments || []).map(comment => {
+        const userId = comment.createdBy.toString();
+        let authorName = 'Unknown User';
+        
+        if (employeeMap.has(userId)) {
+          authorName = employeeMap.get(userId) || authorName;
+        } else if (clientMap.has(userId)) {
+          authorName = clientMap.get(userId) || authorName;
+        } else if (adminMap.has(userId)) {
+          authorName = "Admin";
+        }
+        
+        return {
+          id: comment._id,
+          text: comment.text,
+          createdAt: comment.createdAt,
+          authorName: authorName
+        };
+      });
+      
+      // Sort comments by newest first
+      formattedComments.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      return res.status(200).json({
+        success: true,
+        message: "Ticket details retrieved successfully",
+        data: {
+          id: ticket._id,
+          ticketCode: ticket.ticketCode,
+          title: ticket.title,
+          description: ticket.description,
+          priority: ticket.priority,
+          status: ticket.status,
+          createdAt: ticket.createdAt,
+          client: ticket.client_id,
+          comments: formattedComments,
+          commentCount: formattedComments.length
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving ticket details:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving ticket details",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Update status of a ticket assigned to the employee
+   * Employees can only update the status of tickets assigned to them
+   */
+  async updateTicketStatus(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+      
+      const employeeId = req.user.id;
+      const { ticketId, status, comment } = req.body;
+      
+      // Validate required fields
+      if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid ticket ID is required"
+        });
+      }
+      
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          message: "Status is required"
+        });
+      }
+      
+      // Validate status value - employees can only set specific statuses
+      const allowedStatuses = ['In Progress', 'Resolved'];
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Employees can only set status to: ${allowedStatuses.join(', ')}`
+        });
+      }
+      
+      // Find ticket assigned to this employee
+      const ticket = await Ticket.findOne({
+        _id: new Types.ObjectId(ticketId),
+        assignedTo: new Types.ObjectId(employeeId)
+      });
+      
+      if (!ticket) {
+        return res.status(404).json({
+          success: false,
+          message: "Ticket not found or not assigned to you"
+        });
+      }
+      
+      // Update status
+      ticket.status = status;
+      
+      // Add comment if provided
+      if (comment && comment.trim()) {
+        ticket.comments = ticket.comments || [];
+        const newComment = {
+          text: `Status updated to "${status}"${comment ? `: ${comment}` : ''}`,
+          createdBy: new Types.ObjectId(employeeId),
+          createdAt: new Date()
+        };
+        ticket.comments.push(newComment);
+      }
+      
+      // Save the updated ticket
+      await ticket.save();
+      
+      // Get employee details for response
+      const employee = await Employee.findById(employeeId)
+        .select('firstName lastName employee_id')
+        .lean();
+      
+      return res.status(200).json({
+        success: true,
+        message: `Ticket status updated to '${status}' successfully`,
+        data: {
+          id: ticket._id,
+          ticketCode: ticket.ticketCode,
+          title: ticket.title,
+          status: ticket.status,
+          updatedBy: employee ? {
+            id: employee._id,
+            name: `${employee.firstName} ${employee.lastName}`,
+            employee_id: employee.employee_id
+          } : 'Unknown Employee',
+          updatedAt: new Date()
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating ticket status",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get all tickets assigned to the current employee
+   * With optional filtering by status and priority
+   */
+  async getAssignedTickets(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { status, priority, sort = 'createdAt', order = 'desc' } = req.query;
+  
+      // Build query
+      const query: any = { assignedTo: new Types.ObjectId(employeeId) };
+  
+      // Filter by status if provided
+      if (status) {
+        if (!['Pending', 'In Progress', 'Resolved', 'Closed'].includes(status as string)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid status value"
+          });
+        }
+        query.status = status;
+      }
+  
+      // Filter by priority if provided
+      if (priority) {
+        if (!['Low', 'Medium', 'High'].includes(priority as string)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid priority value"
+          });
+        }
+        query.priority = priority;
+      }
+  
+      // Determine sort order
+      const sortOptions: any = {};
+      sortOptions[sort as string] = order === 'asc' ? 1 : -1;
+  
+      // Define an interface for the populated client field
+      interface PopulatedClient {
+        _id: Types.ObjectId;
+        companyName?: string;
+        contactPerson?: string;
+        email?: string;
+        phone?: string;
+      }
+  
+      // Find tickets and ensure type safety with populated fields
+      const tickets = await Ticket.find(query)
+        .sort(sortOptions)
+        .populate<{ client_id: PopulatedClient }>('client_id', 'companyName contactPerson email phone')
+        .lean();
+  
+      // Prepare summary statistics
+      const summary = {
+        total: tickets.length,
+        pending: tickets.filter(ticket => ticket.status === 'Pending').length,
+        inProgress: tickets.filter(ticket => ticket.status === 'In Progress').length,
+        resolved: tickets.filter(ticket => ticket.status === 'Resolved').length,
+        closed: tickets.filter(ticket => ticket.status === 'Closed').length,
+        highPriority: tickets.filter(ticket => ticket.priority === 'High').length,
+        clientResolved: tickets.filter(ticket => ticket.clientResolved).length
+      };
+  
+      // Format tickets with simplified client information that's relevant for employees
+      const formattedTickets = tickets.map(ticket => ({
+        id: ticket._id,
+        ticketCode: ticket.ticketCode,
+        title: ticket.title,
+        description: ticket.description,
+        priority: ticket.priority,
+        status: ticket.status,
+        clientResolved: ticket.clientResolved || false,
+        clientResolvedAt: ticket.clientResolvedAt,
+        createdAt: ticket.createdAt,
+        client: {
+          id: ticket.client_id._id,
+          name: ticket.client_id.companyName || ticket.client_id.contactPerson || 'Unknown Client',
+          email: ticket.client_id.email || '',
+          phone: ticket.client_id.phone || ''
+        },
+        commentCount: ticket.comments?.length || 0
+      }));
+  
+      return res.status(200).json({
+        success: true,
+        message: "Assigned tickets retrieved successfully",
+        summary,
+        tickets: formattedTickets
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving assigned tickets:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving tickets",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get ticket timeline for employee
+   * Shows key events in chronological order
+   * Only accessible for tickets assigned to the employee
+   */
+  async getTicketTimeline(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { ticketId } = req.body;
+  
+      if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid ticket ID is required"
+        });
+      }
+  
+      // Define interfaces for the populated fields
+      interface PopulatedClient {
+        _id: Types.ObjectId;
+        companyName?: string;
+        contactPerson?: string;
+      }
+  
+      // Find ticket assigned to this employee
+      const ticket = await Ticket.findOne({
+        _id: new Types.ObjectId(ticketId),
+        assignedTo: new Types.ObjectId(employeeId)
+      })
+        .populate<{ client_id: PopulatedClient }>('client_id', 'companyName contactPerson')
+        .select('ticketCode title status priority createdAt clientResolved clientResolvedAt comments')
+        .lean();
+  
+      if (!ticket) {
+        return res.status(404).json({
+          success: false,
+          message: "Ticket not found or not assigned to you"
+        });
+      }
+  
+      // Define types for the timeline events
+      interface TimelineBaseData {
+        ticketCode: string;
+        title: string;
+        priority: 'Low' | 'Medium' | 'High';
+        client: string | { name: string };
+      }
+  
+      interface TimelineAssignmentData {
+        assignee: string;
+      }
+  
+      interface TimelineResolutionData {
+        resolvedByClient: boolean;
+      }
+  
+      interface TimelineStatusData {
+        status: string;
+      }
+  
+      interface TimelineCommentData {
+        totalComments: number;
+        latestComment: {
+          text: string;
+          date: Date;
+          author: string;
+        } | null;
+      }
+  
+      // Use a discriminated union type for timeline events
+      type TimelineEvent =
+        | { type: 'creation'; title: string; date: Date; data: TimelineBaseData }
+        | { type: 'assignment'; title: string; date: Date; data: TimelineAssignmentData }
+        | { type: 'client_resolution'; title: string; date: Date; data: TimelineResolutionData }
+        | { type: 'resolution'; title: string; date: Date; data: TimelineStatusData }
+        | { type: 'comments'; title: string; date: Date; data: TimelineCommentData };
+  
+      // Initialize timeline array with proper typing
+      const timeline: TimelineEvent[] = [];
+  
+      // 1. Generate base timeline data
+      timeline.push({
+        type: 'creation',
+        title: 'Ticket Created',
+        date: ticket.createdAt,
+        data: {
+          ticketCode: ticket.ticketCode,
+          title: ticket.title,
+          priority: ticket.priority,
+          client: ticket.client_id ? {
+            name: ticket.client_id.companyName || ticket.client_id.contactPerson || 'Unknown',
+          } : 'Unknown Client'
+        }
+      });
+  
+      // 2. Add assignment event
+      timeline.push({
+        type: 'assignment',
+        title: 'Ticket Assigned to You',
+        date: ticket.createdAt, // Using creation date as assignment date
+        data: {
+          assignee: 'You'
+        }
+      });
+  
+      // 3. Add client resolution event if it exists
+      if (ticket.clientResolved && ticket.clientResolvedAt) {
+        timeline.push({
+          type: 'client_resolution',
+          title: 'Marked as Resolved by Client',
+          date: ticket.clientResolvedAt,
+          data: {
+            resolvedByClient: true
+          }
+        });
+      }
+  
+      // 4. Add status resolution event if applicable
+      if (ticket.status === 'Resolved' || ticket.status === 'Closed') {
+        // Find the most recent status update comment
+        const statusUpdateComment = ticket.comments?.find(comment => 
+          comment.text.includes('Status updated to "Resolved"') || 
+          comment.text.includes('Status updated to "Closed"')
+        );
+  
+        timeline.push({
+          type: 'resolution',
+          title: `Ticket ${ticket.status}`,
+          date: statusUpdateComment?.createdAt || new Date(), 
+          data: {
+            status: ticket.status
+          }
+        });
+      }
+  
+      // 5. Get comments info
+      const totalComments = ticket.comments?.length || 0;
+      const latestComment = ticket.comments && ticket.comments.length > 0 
+        ? [...ticket.comments].sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )[0]
+        : null;
+  
+      // Get author info for latest comment if exists
+      let latestCommentAuthor: string | null = null;
+      if (latestComment) {
+        const authorId = latestComment.createdBy.toString();
+        
+        // Check if the author is the current employee
+        if (authorId === employeeId.toString()) {
+          latestCommentAuthor = "You";
+        } else {
+          // Find author from appropriate collection
+          const [admin, employee, client] = await Promise.all([
+            Admin.findById(authorId).select('_id').lean(),
+            Employee.findById(authorId).select('firstName lastName').lean(),
+            Client.findById(authorId).select('companyName contactPerson').lean()
+          ]);
+  
+          if (admin) latestCommentAuthor = 'Admin';
+          else if (employee && 'firstName' in employee && 'lastName' in employee) {
+            latestCommentAuthor = `${employee.firstName} ${employee.lastName}`;
+          }
+          else if (client && ('companyName' in client || 'contactPerson' in client)) {
+            latestCommentAuthor = client.contactPerson || client.companyName || 'Client';
+          }
+        }
+      }
+  
+      // Add comment activity summary to timeline
+      if (totalComments > 0) {
+        timeline.push({
+          type: 'comments',
+          title: 'Comment Activity',
+          date: latestComment?.createdAt || ticket.createdAt,
+          data: {
+            totalComments,
+            latestComment: latestComment ? {
+              text: latestComment.text?.substring(0, 50) + (latestComment.text?.length > 50 ? '...' : ''),
+              date: latestComment.createdAt,
+              author: latestCommentAuthor || 'Unknown'
+            } : null
+          }
+        });
+      }
+  
+      // 6. Sort timeline events by date
+      timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  
+      // Prepare response
+      return res.status(200).json({
+        success: true,
+        message: "Ticket timeline retrieved successfully",
+        data: {
+          ticketId: ticket._id,
+          ticketCode: ticket.ticketCode,
+          title: ticket.title,
+          status: ticket.status,
+          currentPriority: ticket.priority,
+          clientResolved: ticket.clientResolved || false,
+          timeline
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving ticket timeline:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving ticket timeline",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }
