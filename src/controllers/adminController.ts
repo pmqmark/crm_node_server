@@ -2350,6 +2350,197 @@ async deleteTicket(req: Request, res: Response): Promise<Response> {
   }
 }
 
+/**
+ * Add a comment to a ticket as an admin
+ */
+async addTicketComment(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: Admin ID is missing"
+      });
+    }
+
+    const adminId = req.user.id;
+    const { ticketId, ticketCode, comment } = req.body;
+    
+    // Validate either ticketId or ticketCode is provided
+    if ((!ticketId || !Types.ObjectId.isValid(ticketId)) && !ticketCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Either valid ticket ID or ticket code is required"
+      });
+    }
+    
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Comment text is required"
+      });
+    }
+    
+    // Find the ticket by ID or code
+    let ticket;
+    if (ticketId && Types.ObjectId.isValid(ticketId)) {
+      ticket = await Ticket.findById(ticketId);
+    } else if (ticketCode) {
+      ticket = await Ticket.findOne({ ticketCode });
+    }
+    
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
+    }
+    
+    // Add comment
+    ticket.comments = ticket.comments || [];
+    const newComment = {
+      text: comment,
+      createdBy: new Types.ObjectId(adminId),
+      createdAt: new Date()
+    };
+    
+    ticket.comments.push(newComment);
+    await ticket.save();
+    
+    // Get the newly added comment
+    const addedComment = ticket.comments[ticket.comments.length - 1];
+    
+    return res.status(201).json({
+      success: true,
+      message: "Comment added successfully",
+      data: {
+        ticketId: ticket._id,
+        ticketCode: ticket.ticketCode,
+        commentId: addedComment._id,
+        text: comment,
+        createdAt: newComment.createdAt,
+        authorName: "Admin",
+        commentCount: ticket.comments.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error adding ticket comment:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error adding comment to ticket",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+
+async getTicketDetails(req: Request, res: Response): Promise<Response> {
+  try {
+    const { id, ticketCode } = req.body;
+    
+    // Find ticket
+    let ticket;
+    if (id && Types.ObjectId.isValid(id)) {
+      ticket = await Ticket.findById(id)
+        .populate('client_id', 'companyName contactPerson email')
+        .populate('assignedTo', 'firstName lastName employee_id')
+        .lean();
+    } else if (ticketCode) {
+      ticket = await Ticket.findOne({ ticketCode })
+        .populate('client_id', 'companyName contactPerson email')
+        .populate('assignedTo', 'firstName lastName employee_id')
+        .lean();
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Either ticket ID or ticketCode is required"
+      });
+    }
+    
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
+    }
+    
+    // If there are no comments, return early
+    if (!ticket.comments || ticket.comments.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "Ticket details retrieved successfully",
+        data: {
+          ...ticket,
+          clientResolved: ticket.clientResolved || false,
+          clientResolvedAt: ticket.clientResolvedAt,
+          comments: [],
+          commentCount: 0
+        }
+      });
+    }
+    
+    const commentUserIds = [...new Set(ticket.comments.map(comment => comment.createdBy.toString()))];
+    
+    const [admins, employees, clients] = await Promise.all([
+      Admin.find({ _id: { $in: commentUserIds } }).select('_id'),
+      Employee.find({ _id: { $in: commentUserIds } }).select('_id firstName lastName'),
+      Client.find({ _id: { $in: commentUserIds } }).select('_id companyName contactPerson')
+    ]);
+    
+    const adminMap = new Map(admins.map(admin => [admin._id.toString(), "Admin"]));
+    const employeeMap = new Map(
+      employees.map(emp => [emp._id.toString(), `${emp.firstName} ${emp.lastName}`])
+    );
+    const clientMap = new Map(
+      clients.map(client => [client._id.toString(), client.contactPerson || client.companyName])
+    );
+    
+    const enrichedComments = ticket.comments.map(comment => {
+      const userId = comment.createdBy.toString();
+      let authorName = 'Unknown User';
+      
+      if (adminMap.has(userId)) {
+        authorName = "Admin";
+      } else if (employeeMap.has(userId)) {
+        authorName = employeeMap.get(userId) || authorName;
+      } else if (clientMap.has(userId)) {
+        authorName = clientMap.get(userId) || authorName;
+      }
+      
+      return {
+        id: comment._id,
+        text: comment.text,
+        createdAt: comment.createdAt,
+        authorName
+      };
+    });
+    
+    enrichedComments.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    
+    return res.status(200).json({
+      success: true,
+      message: "Ticket details retrieved successfully",
+      data: {
+        ...ticket,
+        clientResolved: ticket.clientResolved || false, 
+        clientResolvedAt: ticket.clientResolvedAt,
+        comments: enrichedComments,
+        commentCount: enrichedComments.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error retrieving ticket details:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving ticket details",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
 async createInvoice(req: AuthRequest, res: Response): Promise<Response> {
   try {
     if (!req.user || !req.user.id) {
@@ -2713,6 +2904,225 @@ async deleteInvoice(req: Request, res: Response): Promise<Response> {
     return res.status(500).json({
       success: false,
       message: "Error deleting invoice",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+/**
+ * Get ticket timeline for admin
+ * Shows key events in chronological order
+ */
+async getTicketTimeline(req: Request, res: Response): Promise<Response> {
+  try {
+    const { ticketId } = req.body;
+
+    if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid ticket ID is required"
+      });
+    }
+
+    // Define interfaces for the populated fields
+    interface PopulatedClient {
+      _id: Types.ObjectId;
+      companyName?: string;
+      contactPerson?: string;
+    }
+
+    interface PopulatedEmployee {
+      _id: Types.ObjectId;
+      firstName: string;
+      lastName: string;
+      employee_id?: string;
+    }
+
+    // Fetch the ticket with necessary fields with proper type annotations
+    const ticket = await Ticket.findById(ticketId)
+      .populate<{ client_id: PopulatedClient }>('client_id', 'companyName contactPerson')
+      .populate<{ assignedTo: PopulatedEmployee }>('assignedTo', 'firstName lastName employee_id')
+      .select('ticketCode title status priority createdAt clientResolved clientResolvedAt comments')
+      .lean();
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
+    }
+
+    // Define proper interfaces for timeline events
+    interface TimelineBaseData {
+      ticketCode: string;
+      title: string;
+      priority: 'Low' | 'Medium' | 'High';
+      client: string | { name: string };
+    }
+
+    interface TimelineAssignmentData {
+      assignee: {
+        name: string;
+        employee_id?: string;
+      };
+    }
+
+    interface TimelineResolutionData {
+      resolvedByClient: boolean;
+    }
+
+    interface TimelineStatusData {
+      status: string;
+    }
+
+    interface TimelineCommentData {
+      totalComments: number;
+      latestComment: {
+        text: string;
+        date: Date;
+        author: string;
+      } | null;
+    }
+
+    // Type for the timeline events
+    type TimelineEvent =
+      | { type: 'creation'; title: string; date: Date; data: TimelineBaseData }
+      | { type: 'assignment'; title: string; date: Date; data: TimelineAssignmentData }
+      | { type: 'client_resolution'; title: string; date: Date; data: TimelineResolutionData }
+      | { type: 'resolution'; title: string; date: Date; data: TimelineStatusData }
+      | { type: 'comments'; title: string; date: Date; data: TimelineCommentData };
+
+    // Initialize timeline array with proper typing
+    const timeline: TimelineEvent[] = [];
+
+    // 1. Generate base timeline data
+    timeline.push({
+      type: 'creation',
+      title: 'Ticket Created',
+      date: ticket.createdAt,
+      data: {
+        ticketCode: ticket.ticketCode,
+        title: ticket.title,
+        priority: ticket.priority,
+        client: ticket.client_id ? {
+          name: ticket.client_id.companyName || ticket.client_id.contactPerson || 'Unknown',
+        } : 'Unknown Client'
+      }
+    });
+
+    // 2. Add assignment event if available
+    if (ticket.assignedTo) {
+      timeline.push({
+        type: 'assignment',
+        title: 'Ticket Assigned',
+        date: ticket.createdAt, // No specific assignment date in schema, using creation date
+        data: {
+          assignee: {
+            name: `${ticket.assignedTo.firstName} ${ticket.assignedTo.lastName}`,
+            employee_id: ticket.assignedTo.employee_id
+          }
+        }
+      });
+    }
+
+    // 3. Add client resolution event if it exists
+    if (ticket.clientResolved && ticket.clientResolvedAt) {
+      timeline.push({
+        type: 'client_resolution',
+        title: 'Marked as Resolved by Client',
+        date: ticket.clientResolvedAt,
+        data: {
+          resolvedByClient: true
+        }
+      });
+    }
+
+    // 4. Add status resolution event if applicable
+    if (ticket.status === 'Resolved' || ticket.status === 'Closed') {
+      // For this event, we need to find the most recent status update comment
+      // or use current date if no such comment exists
+      const statusUpdateComment = ticket.comments?.find(comment => 
+        comment.text.includes('Status updated to "Resolved"') || 
+        comment.text.includes('Status updated to "Closed"')
+      );
+
+      timeline.push({
+        type: 'resolution',
+        title: `Ticket ${ticket.status}`,
+        date: statusUpdateComment?.createdAt || new Date(), 
+        data: {
+          status: ticket.status
+        }
+      });
+    }
+
+    // 5. Get comments info
+    const totalComments = ticket.comments?.length || 0;
+    const latestComment = ticket.comments && ticket.comments.length > 0 
+      ? [...ticket.comments].sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0]
+      : null;
+
+    // Get author info for latest comment if exists
+    let latestCommentAuthor: string = 'Unknown';
+    if (latestComment) {
+      // Find the author from the appropriate collection
+      const [admin, employee, client] = await Promise.all([
+        Admin.findById(latestComment.createdBy).select('_id').lean(),
+        Employee.findById(latestComment.createdBy).select('firstName lastName').lean(),
+        Client.findById(latestComment.createdBy).select('companyName contactPerson').lean()
+      ]);
+
+      if (admin) latestCommentAuthor = 'Admin';
+      else if (employee && 'firstName' in employee && 'lastName' in employee) {
+        latestCommentAuthor = `${employee.firstName} ${employee.lastName}`;
+      }
+      else if (client && ('companyName' in client || 'contactPerson' in client)) {
+        latestCommentAuthor = client.contactPerson || client.companyName || 'Client';
+      }
+    }
+
+    // Add comment activity summary to timeline
+    if (totalComments > 0 && latestComment) {
+      timeline.push({
+        type: 'comments',
+        title: 'Comment Activity',
+        date: latestComment.createdAt || ticket.createdAt,
+        data: {
+          totalComments,
+          latestComment: latestComment ? {
+            text: latestComment.text?.substring(0, 50) + (latestComment.text?.length > 50 ? '...' : ''),
+            date: latestComment.createdAt,
+            author: latestCommentAuthor
+          } : null
+        }
+      });
+    }
+
+    // 6. Sort timeline events by date
+    timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Prepare response
+    return res.status(200).json({
+      success: true,
+      message: "Ticket timeline retrieved successfully",
+      data: {
+        ticketId: ticket._id,
+        ticketCode: ticket.ticketCode,
+        title: ticket.title,
+        status: ticket.status,
+        currentPriority: ticket.priority,
+        clientResolved: ticket.clientResolved || false,
+        timeline
+      }
+    });
+
+  } catch (error) {
+    console.error('Error retrieving ticket timeline:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving ticket timeline",
       error: error instanceof Error ? error.message : "Unknown error"
     });
   }

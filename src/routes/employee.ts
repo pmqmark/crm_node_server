@@ -106,7 +106,6 @@ router.delete("/todos", authMiddleware, (req, res) => {
   employeeController.deleteTodo(req, res);
 });
 
-// Get attendance summary statistics
 router.get("/attendance-analytics", authMiddleware, (req, res) => {
   employeeController.getAttendanceAnalytics(req, res);
 });
@@ -115,5 +114,24 @@ router.get("/attendance-analytics", authMiddleware, (req, res) => {
 router.get("/weekly-attendance", authMiddleware, (req, res) => {
   employeeController.getWeeklyAttendance(req, res);
 });
+
+router.get('/tickets', authMiddleware, (req, res) => {
+    employeeController.getAssignedTickets(req, res);
+  });
+ 
+router.post('/ticket-comment', authMiddleware, (req, res) => {
+    employeeController.addTicketComment(req, res);
+  });
+
+router.post('/ticket-details', authMiddleware, (req, res) => {
+    employeeController.getTicketDetails(req, res);
+  });
+router.post('/update-ticket-status', authMiddleware, (req, res) => {
+    employeeController.updateTicketStatus(req, res);
+  });
+
+router.post('/ticket-timeline', (req, res) => {
+   employeeController.getTicketTimeline(req, res);
+  });
 
 export default router;

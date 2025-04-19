@@ -27,6 +27,21 @@ router.delete('/delete-ticket', (req, res) => {
   clientController.deleteTicket(req, res);
 });
 
+router.post('/ticket-comment', authMiddleware, (req, res) => {
+  clientController.addTicketComment(req, res);
+});
+
+router.post('/ticket-details', (req, res) => {
+  clientController.getTicketDetails(req, res);
+});
+router.post('/toggle-ticket-resolution', authMiddleware, (req, res) => {
+  clientController.toggleTicketResolution(req, res);
+});
+
+router.post('/ticket-timeline', (req, res) => {
+  clientController.getTicketTimeline(req, res);
+});
+
 router.get('/projects', (req, res) => {
   clientController.getClientProjects(req, res);
 });

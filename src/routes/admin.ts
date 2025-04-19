@@ -114,6 +114,19 @@ router.delete('/delete-ticket', (req, res) => {
   adminController.deleteTicket(req, res);
 });
 
+
+router.post('/ticket-details', (req, res) => {
+  adminController.getTicketDetails(req, res);
+});
+
+router.post('/ticket-comment', authMiddleware, (req, res) => {
+    adminController.addTicketComment(req, res);
+  });
+
+router.post('/ticket-timeline', (req, res) => {
+    adminController.getTicketTimeline(req, res);
+  });
+
 // Invoice routes
 router.post('/create-invoice', (req, res) => {
   adminController.createInvoice(req, res);
