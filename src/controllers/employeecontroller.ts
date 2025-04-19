@@ -11,6 +11,9 @@ import { Project } from '../models/projects';
 import Task from '../models/tasks';
 import Skill from '../models/skill';
 import Todo from '../models/todo';
+import Ticket from '../models/ticket';
+import Admin from "../models/admin";
+import { Client } from "../models/client";
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -2060,7 +2063,6 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
         ? Math.min(100, Math.round((weeklyTotal / expectedHours) * 100))
         : 100;
 
-      // Format time function
       const formatTime = (hours: number): string => {
         const totalMinutes = Math.round(hours * 60);
         const hrs = Math.floor(totalMinutes / 60);
@@ -2075,7 +2077,6 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
         }
       };
       
-      // Format daily data with time display
       const formattedDailyData = dailyData.map(day => ({
         ...day,
         hoursDisplay: formatTime(day.hours)
@@ -2127,6 +2128,682 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
     }
     
     return count;
+  }
+
+  /**
+   * Add a comment to a ticket assigned to the employee
+   */
+  async addTicketComment(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+      
+      const employeeId = req.user.id;
+      const { ticketId, comment } = req.body;
+      
+      // Validate required fields
+      if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid ticket ID is required"
+        });
+      }
+      
+      if (!comment || !comment.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Comment text is required"
+        });
+      }
+      
+      // Find the ticket and verify employee has access (is assigned to it)
+      const ticket = await Ticket.findOne({
+        _id: new Types.ObjectId(ticketId),
+        assignedTo: new Types.ObjectId(employeeId)
+      });
+      
+      if (!ticket) {
+        return res.status(404).json({
+          success: false,
+          message: "Ticket not found or you're not assigned to this ticket"
+        });
+      }
+      
+      // Get employee details to include with comment
+      const employee = await Employee.findById(employeeId)
+        .select('firstName lastName');
+        
+      if (!employee) {
+        return res.status(500).json({
+          success: false,
+          message: "Employee details not found"
+        });
+      }
+      
+      // Add comment to ticket
+      ticket.comments = ticket.comments || [];
+      const newComment = {
+        text: comment,
+        createdBy: new Types.ObjectId(employeeId),
+        createdAt: new Date()
+      };
+      
+      ticket.comments.push(newComment);
+      await ticket.save();
+      
+      const addedComment = ticket.comments[ticket.comments.length - 1];
+      
+      return res.status(201).json({
+        success: true,
+        message: "Comment added successfully",
+        data: {
+          commentId: addedComment._id,
+          text: comment,
+          createdAt: newComment.createdAt,
+          authorName: `${employee.firstName} ${employee.lastName}`,
+          commentCount: ticket.comments.length
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error adding ticket comment:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error adding comment to ticket",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get ticket details with all comments for the assigned employee
+   */
+  async getTicketDetails(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+      
+      const employeeId = req.user.id;
+      const { ticketId } = req.body; // Changed from req.params to req.body for consistency with admin implementation
+      
+      if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid ticket ID is required"
+        });
+      }
+      
+      // Find ticket assigned to this employee
+      const ticket = await Ticket.findOne({
+        _id: new Types.ObjectId(ticketId),
+        assignedTo: new Types.ObjectId(employeeId)
+      }).populate('client_id', 'companyName contactPerson');
+      
+      if (!ticket) {
+        return res.status(404).json({
+          success: false,
+          message: "Ticket not found or not assigned to you"
+        });
+      }
+      
+      // Get all comment author details
+      const commentUserIds = ticket.comments?.map(comment => comment.createdBy.toString()) || [];
+      
+      if (commentUserIds.length === 0) {
+        // No comments case - early return
+        return res.status(200).json({
+          success: true,
+          message: "Ticket details retrieved successfully",
+          data: {
+            id: ticket._id,
+            ticketCode: ticket.ticketCode,
+            title: ticket.title,
+            description: ticket.description,
+            priority: ticket.priority,
+            status: ticket.status,
+            createdAt: ticket.createdAt,
+            client: ticket.client_id,
+            comments: [],
+            commentCount: 0
+          }
+        });
+      }
+      
+      const Employee = require('../models/employee').default;
+      const Admin = require('../models/admin').default;
+      const { Client } = require('../models/client');
+      
+      interface IAuthor {
+        _id: Types.ObjectId;
+        [key: string]: any; // Additional fields
+      }
+      
+      const [employeeAuthors, clientAuthors, adminAuthors] = await Promise.all([
+        Employee.find({ 
+          _id: { $in: commentUserIds.map(id => new Types.ObjectId(id)) } 
+        }).select('_id firstName lastName').lean() as Promise<IAuthor[]>,
+        
+        Client.find({ 
+          _id: { $in: commentUserIds.map(id => new Types.ObjectId(id)) } 
+        }).select('_id companyName contactPerson').lean() as Promise<IAuthor[]>,
+        
+        Admin.find({ 
+          _id: { $in: commentUserIds.map(id => new Types.ObjectId(id)) } 
+        }).select('_id').lean() as Promise<IAuthor[]>
+      ]);
+      
+      // Create maps for quick lookup with proper typing
+      const employeeMap = new Map<string, string>();
+      employeeAuthors.forEach((emp: IAuthor) => {
+        employeeMap.set(
+          emp._id.toString(), 
+          `${emp.firstName} ${emp.lastName}`
+        );
+      });
+      
+      const clientMap = new Map<string, string>();
+      clientAuthors.forEach((client: IAuthor) => {
+        clientMap.set(
+          client._id.toString(),
+          client.contactPerson || client.companyName
+        );
+      });
+      
+      const adminMap = new Map<string, string>();
+      adminAuthors.forEach((admin: IAuthor) => {
+        adminMap.set(admin._id.toString(), "Admin");
+      });
+      
+      // Format comments with author names with proper typing
+      const formattedComments = (ticket.comments || []).map(comment => {
+        const userId = comment.createdBy.toString();
+        let authorName = 'Unknown User';
+        
+        if (employeeMap.has(userId)) {
+          authorName = employeeMap.get(userId) || authorName;
+        } else if (clientMap.has(userId)) {
+          authorName = clientMap.get(userId) || authorName;
+        } else if (adminMap.has(userId)) {
+          authorName = "Admin";
+        }
+        
+        return {
+          id: comment._id,
+          text: comment.text,
+          createdAt: comment.createdAt,
+          authorName: authorName
+        };
+      });
+      
+      // Sort comments by newest first
+      formattedComments.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      return res.status(200).json({
+        success: true,
+        message: "Ticket details retrieved successfully",
+        data: {
+          id: ticket._id,
+          ticketCode: ticket.ticketCode,
+          title: ticket.title,
+          description: ticket.description,
+          priority: ticket.priority,
+          status: ticket.status,
+          createdAt: ticket.createdAt,
+          client: ticket.client_id,
+          comments: formattedComments,
+          commentCount: formattedComments.length
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving ticket details:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving ticket details",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Update status of a ticket assigned to the employee
+   * Employees can only update the status of tickets assigned to them
+   */
+  async updateTicketStatus(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+      
+      const employeeId = req.user.id;
+      const { ticketId, status, comment } = req.body;
+      
+      // Validate required fields
+      if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid ticket ID is required"
+        });
+      }
+      
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          message: "Status is required"
+        });
+      }
+      
+      // Validate status value - employees can only set specific statuses
+      const allowedStatuses = ['In Progress', 'Resolved'];
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Employees can only set status to: ${allowedStatuses.join(', ')}`
+        });
+      }
+      
+      // Find ticket assigned to this employee
+      const ticket = await Ticket.findOne({
+        _id: new Types.ObjectId(ticketId),
+        assignedTo: new Types.ObjectId(employeeId)
+      });
+      
+      if (!ticket) {
+        return res.status(404).json({
+          success: false,
+          message: "Ticket not found or not assigned to you"
+        });
+      }
+      
+      // Update status
+      ticket.status = status;
+      
+      // Add comment if provided
+      if (comment && comment.trim()) {
+        ticket.comments = ticket.comments || [];
+        const newComment = {
+          text: `Status updated to "${status}"${comment ? `: ${comment}` : ''}`,
+          createdBy: new Types.ObjectId(employeeId),
+          createdAt: new Date()
+        };
+        ticket.comments.push(newComment);
+      }
+      
+      // Save the updated ticket
+      await ticket.save();
+      
+      // Get employee details for response
+      const employee = await Employee.findById(employeeId)
+        .select('firstName lastName employee_id')
+        .lean();
+      
+      return res.status(200).json({
+        success: true,
+        message: `Ticket status updated to '${status}' successfully`,
+        data: {
+          id: ticket._id,
+          ticketCode: ticket.ticketCode,
+          title: ticket.title,
+          status: ticket.status,
+          updatedBy: employee ? {
+            id: employee._id,
+            name: `${employee.firstName} ${employee.lastName}`,
+            employee_id: employee.employee_id
+          } : 'Unknown Employee',
+          updatedAt: new Date()
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating ticket status",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get all tickets assigned to the current employee
+   * With optional filtering by status and priority
+   */
+  async getAssignedTickets(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { status, priority, sort = 'createdAt', order = 'desc' } = req.query;
+  
+      // Build query
+      const query: any = { assignedTo: new Types.ObjectId(employeeId) };
+  
+      // Filter by status if provided
+      if (status) {
+        if (!['Pending', 'In Progress', 'Resolved', 'Closed'].includes(status as string)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid status value"
+          });
+        }
+        query.status = status;
+      }
+  
+      // Filter by priority if provided
+      if (priority) {
+        if (!['Low', 'Medium', 'High'].includes(priority as string)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid priority value"
+          });
+        }
+        query.priority = priority;
+      }
+  
+      // Determine sort order
+      const sortOptions: any = {};
+      sortOptions[sort as string] = order === 'asc' ? 1 : -1;
+  
+      // Define an interface for the populated client field
+      interface PopulatedClient {
+        _id: Types.ObjectId;
+        companyName?: string;
+        contactPerson?: string;
+        email?: string;
+        phone?: string;
+      }
+  
+      // Find tickets and ensure type safety with populated fields
+      const tickets = await Ticket.find(query)
+        .sort(sortOptions)
+        .populate<{ client_id: PopulatedClient }>('client_id', 'companyName contactPerson email phone')
+        .lean();
+  
+      // Prepare summary statistics
+      const summary = {
+        total: tickets.length,
+        pending: tickets.filter(ticket => ticket.status === 'Pending').length,
+        inProgress: tickets.filter(ticket => ticket.status === 'In Progress').length,
+        resolved: tickets.filter(ticket => ticket.status === 'Resolved').length,
+        closed: tickets.filter(ticket => ticket.status === 'Closed').length,
+        highPriority: tickets.filter(ticket => ticket.priority === 'High').length,
+        clientResolved: tickets.filter(ticket => ticket.clientResolved).length
+      };
+  
+      // Format tickets with simplified client information that's relevant for employees
+      const formattedTickets = tickets.map(ticket => ({
+        id: ticket._id,
+        ticketCode: ticket.ticketCode,
+        title: ticket.title,
+        description: ticket.description,
+        priority: ticket.priority,
+        status: ticket.status,
+        clientResolved: ticket.clientResolved || false,
+        clientResolvedAt: ticket.clientResolvedAt,
+        createdAt: ticket.createdAt,
+        client: {
+          id: ticket.client_id._id,
+          name: ticket.client_id.companyName || ticket.client_id.contactPerson || 'Unknown Client',
+          email: ticket.client_id.email || '',
+          phone: ticket.client_id.phone || ''
+        },
+        commentCount: ticket.comments?.length || 0
+      }));
+  
+      return res.status(200).json({
+        success: true,
+        message: "Assigned tickets retrieved successfully",
+        summary,
+        tickets: formattedTickets
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving assigned tickets:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving tickets",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+  /**
+   * Get ticket timeline for employee
+   * Shows key events in chronological order
+   * Only accessible for tickets assigned to the employee
+   */
+  async getTicketTimeline(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { ticketId } = req.body;
+  
+      if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid ticket ID is required"
+        });
+      }
+  
+      // Define interfaces for the populated fields
+      interface PopulatedClient {
+        _id: Types.ObjectId;
+        companyName?: string;
+        contactPerson?: string;
+      }
+  
+      // Find ticket assigned to this employee
+      const ticket = await Ticket.findOne({
+        _id: new Types.ObjectId(ticketId),
+        assignedTo: new Types.ObjectId(employeeId)
+      })
+        .populate<{ client_id: PopulatedClient }>('client_id', 'companyName contactPerson')
+        .select('ticketCode title status priority createdAt clientResolved clientResolvedAt comments')
+        .lean();
+  
+      if (!ticket) {
+        return res.status(404).json({
+          success: false,
+          message: "Ticket not found or not assigned to you"
+        });
+      }
+  
+      // Define types for the timeline events
+      interface TimelineBaseData {
+        ticketCode: string;
+        title: string;
+        priority: 'Low' | 'Medium' | 'High';
+        client: string | { name: string };
+      }
+  
+      interface TimelineAssignmentData {
+        assignee: string;
+      }
+  
+      interface TimelineResolutionData {
+        resolvedByClient: boolean;
+      }
+  
+      interface TimelineStatusData {
+        status: string;
+      }
+  
+      interface TimelineCommentData {
+        totalComments: number;
+        latestComment: {
+          text: string;
+          date: Date;
+          author: string;
+        } | null;
+      }
+  
+      // Use a discriminated union type for timeline events
+      type TimelineEvent =
+        | { type: 'creation'; title: string; date: Date; data: TimelineBaseData }
+        | { type: 'assignment'; title: string; date: Date; data: TimelineAssignmentData }
+        | { type: 'client_resolution'; title: string; date: Date; data: TimelineResolutionData }
+        | { type: 'resolution'; title: string; date: Date; data: TimelineStatusData }
+        | { type: 'comments'; title: string; date: Date; data: TimelineCommentData };
+  
+      // Initialize timeline array with proper typing
+      const timeline: TimelineEvent[] = [];
+  
+      // 1. Generate base timeline data
+      timeline.push({
+        type: 'creation',
+        title: 'Ticket Created',
+        date: ticket.createdAt,
+        data: {
+          ticketCode: ticket.ticketCode,
+          title: ticket.title,
+          priority: ticket.priority,
+          client: ticket.client_id ? {
+            name: ticket.client_id.companyName || ticket.client_id.contactPerson || 'Unknown',
+          } : 'Unknown Client'
+        }
+      });
+  
+      // 2. Add assignment event
+      timeline.push({
+        type: 'assignment',
+        title: 'Ticket Assigned to You',
+        date: ticket.createdAt, // Using creation date as assignment date
+        data: {
+          assignee: 'You'
+        }
+      });
+  
+      // 3. Add client resolution event if it exists
+      if (ticket.clientResolved && ticket.clientResolvedAt) {
+        timeline.push({
+          type: 'client_resolution',
+          title: 'Marked as Resolved by Client',
+          date: ticket.clientResolvedAt,
+          data: {
+            resolvedByClient: true
+          }
+        });
+      }
+  
+      // 4. Add status resolution event if applicable
+      if (ticket.status === 'Resolved' || ticket.status === 'Closed') {
+        // Find the most recent status update comment
+        const statusUpdateComment = ticket.comments?.find(comment => 
+          comment.text.includes('Status updated to "Resolved"') || 
+          comment.text.includes('Status updated to "Closed"')
+        );
+  
+        timeline.push({
+          type: 'resolution',
+          title: `Ticket ${ticket.status}`,
+          date: statusUpdateComment?.createdAt || new Date(), 
+          data: {
+            status: ticket.status
+          }
+        });
+      }
+  
+      // 5. Get comments info
+      const totalComments = ticket.comments?.length || 0;
+      const latestComment = ticket.comments && ticket.comments.length > 0 
+        ? [...ticket.comments].sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )[0]
+        : null;
+  
+      // Get author info for latest comment if exists
+      let latestCommentAuthor: string | null = null;
+      if (latestComment) {
+        const authorId = latestComment.createdBy.toString();
+        
+        // Check if the author is the current employee
+        if (authorId === employeeId.toString()) {
+          latestCommentAuthor = "You";
+        } else {
+          // Find author from appropriate collection
+          const [admin, employee, client] = await Promise.all([
+            Admin.findById(authorId).select('_id').lean(),
+            Employee.findById(authorId).select('firstName lastName').lean(),
+            Client.findById(authorId).select('companyName contactPerson').lean()
+          ]);
+  
+          if (admin) latestCommentAuthor = 'Admin';
+          else if (employee && 'firstName' in employee && 'lastName' in employee) {
+            latestCommentAuthor = `${employee.firstName} ${employee.lastName}`;
+          }
+          else if (client && ('companyName' in client || 'contactPerson' in client)) {
+            latestCommentAuthor = client.contactPerson || client.companyName || 'Client';
+          }
+        }
+      }
+  
+      // Add comment activity summary to timeline
+      if (totalComments > 0) {
+        timeline.push({
+          type: 'comments',
+          title: 'Comment Activity',
+          date: latestComment?.createdAt || ticket.createdAt,
+          data: {
+            totalComments,
+            latestComment: latestComment ? {
+              text: latestComment.text?.substring(0, 50) + (latestComment.text?.length > 50 ? '...' : ''),
+              date: latestComment.createdAt,
+              author: latestCommentAuthor || 'Unknown'
+            } : null
+          }
+        });
+      }
+  
+      // 6. Sort timeline events by date
+      timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  
+      // Prepare response
+      return res.status(200).json({
+        success: true,
+        message: "Ticket timeline retrieved successfully",
+        data: {
+          ticketId: ticket._id,
+          ticketCode: ticket.ticketCode,
+          title: ticket.title,
+          status: ticket.status,
+          currentPriority: ticket.priority,
+          clientResolved: ticket.clientResolved || false,
+          timeline
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving ticket timeline:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving ticket timeline",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
   }
 }
 
