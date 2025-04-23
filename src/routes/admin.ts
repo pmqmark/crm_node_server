@@ -252,7 +252,9 @@ router.put('/invoice/:id', (req, res) => {
 //     adminController.deleteInvoice1(req, res);
 // });
 
-
+router.get('/projects/clients/:id', (req, res) => {
+    adminController.getClientProjects(req, res);
+  });
 
 
 export default router;
