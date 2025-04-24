@@ -3324,13 +3324,22 @@ export class AdminController {
 
       const reviews = await Review.find(query)
         .sort({ createdAt: -1 })
-        .populate('user_id', 'firstName lastName')
+        .populate('user_id', 'contactPerson')
         .lean();
+
+      const formattedReviews = reviews.map(review => ({
+        id: review._id,
+        user_id: review.user_id?._id,
+        userName: (review.user_id as any)?.contactPerson,
+        rating: review.rating,
+        comment: review.comment,
+        createdAt: review.createdAt,
+      }));
 
       return res.status(200).json({
         success: true,
         message: "reviews retrieved successfully",
-        reviews
+        data: formattedReviews
       });
 
     } catch (error) {

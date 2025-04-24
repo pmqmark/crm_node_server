@@ -1284,13 +1284,14 @@ export class ClientController {
       // Find reviews
       const reviews = await Review.find(query)
         .sort(sortOptions)
-        .populate('user_id', 'firstName lastName')
+        .populate('user_id', 'contactPerson')
         .lean();
 
       // Map reviews to ensure reviewCode is included in the response
       const formattedReviews = reviews.map(review => ({
         id: review._id,
-        user_id: review.user_id,
+        user_id: review.user_id?._id,
+        userName: (review.user_id as any)?.contactPerson,
         rating: review.rating,
         comment: review.comment,
         createdAt: review.createdAt,
