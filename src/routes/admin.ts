@@ -269,6 +269,10 @@ router.get('/employee-skills/:id', (req, res) => {
     adminController.getEmployeeSkills(req, res);
 });
 
+router.get("/employee-attendance-analytics/:id", authMiddleware, (req, res) => {
+  adminController.getEmpAttendanceAnalytics(req, res);
+});
+
 export default router;
 
 

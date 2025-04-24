@@ -138,6 +138,23 @@ interface IPunchSummary {
 }
 
 export class AdminController {
+
+  private getWeekdaysCount(startDate: Date, endDate: Date): number {
+    let count = 0;
+    const currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      const dayOfWeek = currentDate.getDay();
+      // Count Monday (1) through Friday (5)
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        count++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return count;
+  }
+
   async createAdmin(req: Request, res: Response): Promise<Response> {
     try {
       const adminData: CreateAdminDto = req.body;
@@ -3428,6 +3445,159 @@ export class AdminController {
       }
     }
   
+
+async getEmpAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      const employeeId = req.params.id;
+
+      if (!isValidObjectId(employeeId)) {
+        return res.status(401).json({
+          success: false,
+          message: "Employee ID is missing"
+        });
+      }
+      
+      // Get date ranges
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Start of current week (Sunday)
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      // Start of current month
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      
+      // Get today's attendance record
+      const todayAttendance = await AttendanceLog.findOne({
+        employee_id: employeeId,
+        date: { $gte: today, $lt: tomorrow }
+      });
+  
+      // Calculate today's hours
+      let hoursToday = 0;
+      let currentStatus = 'Not Checked In';
+      let isPunchedIn = false;
+      
+      if (todayAttendance) {
+        if (todayAttendance.punchOut) {
+          // Completed shift
+          hoursToday = todayAttendance.totalHours;
+          currentStatus = todayAttendance.status;
+        } else {
+          // Still punched in - calculate hours up to now
+          isPunchedIn = true;
+          const now = new Date();
+          hoursToday = Number(((now.getTime() - todayAttendance.punchIn.getTime()) / (1000 * 60 * 60)).toFixed(2));
+          currentStatus = 'Working';
+        }
+      }
+  
+      // Get weekly hours
+      const weeklyLogs = await AttendanceLog.find({
+        employee_id: employeeId,
+        date: { $gte: startOfWeek, $lt: tomorrow }
+      });
+      
+      let hoursThisWeek = 0;
+      weeklyLogs.forEach(log => {
+        if (log.punchOut) {
+          hoursThisWeek += log.totalHours;
+        }
+      });
+      
+      // Add today's ongoing hours if still punched in
+      if (isPunchedIn) {
+        hoursThisWeek += hoursToday;
+      }
+  
+      // Get monthly hours and attendance status counts
+      const monthlyLogs = await AttendanceLog.find({
+        employee_id: employeeId,
+        date: { $gte: startOfMonth, $lt: tomorrow }
+      });
+      
+      let hoursThisMonth = 0;
+      monthlyLogs.forEach(log => {
+        if (log.punchOut) {
+          hoursThisMonth += log.totalHours;
+        }
+      });
+      
+      // Add today's ongoing hours if still punched in
+      if (isPunchedIn) {
+        hoursThisMonth += hoursToday;
+      }
+      
+      // Calculate attendance status counts for current month
+      const presentDays = monthlyLogs.filter(log => log.status === 'Present').length;
+      const halfDays = monthlyLogs.filter(log => log.status === 'Half-Day').length;
+      const absentDays = monthlyLogs.filter(log => log.status === 'Absent').length;
+  
+      // Calculate total expected workdays in the month so far
+      const workdaysInMonthSoFar = this.getWeekdaysCount(startOfMonth, today);
+      
+      // Calculate attendance percentage
+      const attendancePercentage = workdaysInMonthSoFar > 0 
+        ? Math.round(((presentDays + (halfDays * 0.5)) / workdaysInMonthSoFar) * 100) 
+        : 0;
+  
+      // Format the time for display
+      const formatTime = (hours: number): string => {
+        const totalMinutes = Math.round(hours * 60);
+        const hrs = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        
+        if (hrs === 0) {
+          return `${mins} minutes`;
+        } else if (mins === 0) {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+        } else {
+          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${mins} minutes`;
+        }
+      };
+      
+      return res.status(200).json({
+        success: true,
+        message: "Attendance analytics retrieved successfully",
+        data: {
+          current: {
+            hoursToday: Number(hoursToday.toFixed(2)),
+            hoursDisplay: formatTime(hoursToday),
+            currentStatus,
+            isPunchedIn
+          },
+          summary: {
+            hoursThisWeek: Number(hoursThisWeek.toFixed(2)),
+            hoursThisWeekDisplay: formatTime(hoursThisWeek),
+            hoursThisMonth: Number(hoursThisMonth.toFixed(2)),
+            hoursThisMonthDisplay: formatTime(hoursThisMonth),
+            attendancePercentage,
+            presentDays,
+            halfDays,
+            absentDays
+          },
+          standardHours: {
+            daily: 8,
+            weekly: 40,
+            monthly: workdaysInMonthSoFar * 8
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error retrieving attendance analytics:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving attendance analytics",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
 
 }
 
