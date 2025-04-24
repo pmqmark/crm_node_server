@@ -12,6 +12,7 @@ import { Project } from '../models/projects';
 import Invoice from '../models/invoice';
 import Admin from '../models/admin';
 import { Review } from '../models/review';
+import Task from '../models/tasks';
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -1365,5 +1366,118 @@ export class ClientController {
       });
     }
   }
+
+
+  async getClientProjectOverview(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "User not authenticated"
+        });
+      }
+
+      const clientId = req.user.id;
+      const { status } = req.query;
+
+      const query: any = { client: new Types.ObjectId(clientId) };
+
+      if (status) {
+        if (!['Not Started', 'In Progress', 'Completed', 'On Hold'].includes(status as string)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid status value. Must be 'Not Started', 'In Progress', 'Completed', or 'On Hold'"
+          });
+        }
+        query.status = status;
+      }
+
+      const projects = await Project.find(query)
+        .sort({ startDate: 1 })
+        .populate('teamLeaders', 'firstName lastName employee_id')
+        .populate('teamMembers', 'firstName lastName employee_id')
+        .populate('managers', 'firstName lastName employee_id')
+        .populate('created_by', 'firstName lastName employee_id')
+        .lean();
+
+      const projectIds = projects.map(p => p._id);
+      const tasks = await Task.find({ project_id: { $in: projectIds } }).lean();
+
+      const taskStatusCounts = tasks.reduce((acc, task) => {
+        acc.total++;
+        if (task.status === 'Completed') acc.completed++;
+        return acc;
+      }, { total: 0, completed: 0 });
+
+      const projectData = {
+        total: projects.length,
+        completed: projects.filter(p => p.status === 'Completed').length,
+        inProgress: projects.filter(p => p.status === 'In Progress').length,
+        pending: projects.filter(p => p.status === 'Not Started').length,
+        taskCompletion: taskStatusCounts.total > 0
+          ? `${Math.round((taskStatusCounts.completed / taskStatusCounts.total) * 100)}%`
+          : '0%'
+      };
+
+      const now = new Date();
+      const monthlyStatsMap = new Map();
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+        monthlyStatsMap.set(key, { month: date.toLocaleString('default', { month: 'short' }), completed: 0, inProgress: 0, pending: 0 });
+      }
+
+      for (const project of projects) {
+        const start = new Date(project.startDate);
+        const key = `${start.getFullYear()}-${(start.getMonth() + 1).toString().padStart(2, '0')}`;
+        if (monthlyStatsMap.has(key)) {
+          const stat = monthlyStatsMap.get(key);
+          if (project.status === 'Completed') stat.completed++;
+          else if (project.status === 'In Progress') stat.inProgress++;
+          else if (project.status === 'Not Started') stat.pending++;
+        }
+      }
+
+      const monthlyProjectData = Array.from(monthlyStatsMap.values());
+
+      const categories = ['Development', 'Design', 'Testing', 'Documentation'];
+      const taskCategories = categories.map(cat => {
+        const catTasks = tasks.filter(t => t.description.toLowerCase().includes(cat.toLowerCase()));
+        return {
+          name: cat,
+          total: catTasks?.length ?? 0,
+          completed: catTasks.filter(t => t.status === 'Completed').length
+        };
+      });
+
+      const uncategorizedTasks = tasks.filter(t => !categories.some(cat => t.description.toLowerCase().includes(cat.toLowerCase())));
+      if (uncategorizedTasks.length > 0) {
+        taskCategories.push({
+          name: 'Other',
+          total: uncategorizedTasks.length,
+          completed: uncategorizedTasks.filter(t => t.status === 'Completed').length
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Projects retrieved successfully",
+        data: {
+          projectData,
+          monthlyProjectData,
+          taskCategories
+        }
+      });
+
+    } catch (error) {
+      console.error('Error retrieving projects:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving projects",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
 
 }

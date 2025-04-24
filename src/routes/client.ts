@@ -72,4 +72,8 @@ router.delete('/reviews', (req, res) => {
   clientController.deleteReview(req, res);
 });
 
+router.get('/overview/projects', (req, res) => {
+  clientController.getClientProjectOverview(req, res);
+});
+
 export default router;
