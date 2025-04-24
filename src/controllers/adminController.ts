@@ -19,6 +19,7 @@ import { CreateInvoiceDto, UpdateInvoiceDto, GetInvoiceDto, DeleteInvoiceDto, de
 import { AuthRequest } from '../middleware/verifyToken';
 import Task from "../models/tasks";
 import Schedule from "../models/schedules";
+import { Review } from "../models/review";
 interface CreateScheduleDto {
   employee_ids: string[];
   description: string;
@@ -3308,6 +3309,81 @@ export class AdminController {
       });
     }
   }
+
+  async getReviews(req: Request, res: Response): Promise<Response> {
+    try {
+      const { user_id } = req.query;
+
+      // Build query
+      const query: any = {};
+
+      // Filter by client if provided
+      if (user_id && Types.ObjectId.isValid(user_id as string)) {
+        query.user_id = new Types.ObjectId(user_id as string);
+      }
+
+      const reviews = await Review.find(query)
+        .sort({ createdAt: -1 })
+        .populate('user_id', 'firstName lastName')
+        .lean();
+
+      return res.status(200).json({
+        success: true,
+        message: "reviews retrieved successfully",
+        reviews
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving reviews",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async deleteReview(req: Request, res: Response): Promise<Response> {
+    try {
+      const { id } = req.body;
+
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: "review id is required"
+        });
+      }
+
+      // Find review
+      let review;
+      if (id && Types.ObjectId.isValid(id)) {
+        review = await Review.findById(id);
+      }
+
+      if (!review) {
+        return res.status(404).json({
+          success: false,
+          message: "review not found"
+        });
+      }
+
+      // Delete the review
+      await Review.findByIdAndDelete(review._id);
+
+      return res.status(200).json({
+        success: true,
+        message: `review ${id} deleted successfully`
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting review",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
 
 }
 
