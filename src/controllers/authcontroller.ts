@@ -56,12 +56,11 @@ export class AuthService {
       if (!usr) {
         throw new Error('Invalid credentials');
       }
+
       const isPasswordValid = await bcrypt.compare(password, usr.password);
       if (!isPasswordValid) {
         throw new Error('Invalid credentials');
       }
-
-
 
       const verifieduser: validitatedUser = {
         id: usr._id,
@@ -72,7 +71,6 @@ export class AuthService {
       const accesstoken = generateAccessToken(verifieduser)
       const refreshtoken = generateRefreshToken(verifieduser)
 
-
       return res.status(200).json({
         message: "Login successful",
         user: verifieduser,
@@ -80,12 +78,11 @@ export class AuthService {
         refreshtoken
       });
 
-
     } catch (error: unknown) {
       if (error instanceof Error) {
-        return res.status(500).json({ message: `Error creating user: ${error.message}` });
+        return res.status(500).json({ message: `${error.message}` });
       }
-      return res.status(500).json({ message: "An unknown error occurred while creating user" });
+      return res.status(500).json({ message: "Internal server error" });
     }
   }
 
@@ -124,9 +121,9 @@ export class AuthService {
 
     } catch (error: unknown) {
       if (error instanceof Error) {
-        return res.status(500).json({ message: `Error creating user: ${error.message}` });
+        return res.status(500).json({ message: `${error.message}` });
       }
-      return res.status(500).json({ message: "An unknown error occurred while creating user" });
+      return res.status(500).json({ message: "Internal server error" });
     }
   }
 

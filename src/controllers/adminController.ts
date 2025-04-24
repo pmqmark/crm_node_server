@@ -20,6 +20,8 @@ import { AuthRequest } from '../middleware/verifyToken';
 import Task from "../models/tasks";
 import Schedule from "../models/schedules";
 import { Review } from "../models/review";
+import Skill from '../models/skill';
+
 interface CreateScheduleDto {
   employee_ids: string[];
   description: string;
@@ -3393,6 +3395,39 @@ export class AdminController {
     }
   }
 
+
+  async getEmployeeSkills(req: AuthRequest, res: Response): Promise<Response> {
+      try {
+        const {id} = req.params;
+
+        if (!isValidObjectId(id)) {
+          return res.status(401).json({
+            success: false,
+            message: "Employee ID is missing"
+          });
+        }
+    
+        // Find all skills for this employee, sorted by name
+        const skills = await Skill.find({
+          employee_id: new Types.ObjectId(id)
+        }).sort({ name: 1 });
+    
+        return res.status(200).json({
+          success: true,
+          message: "Skills retrieved successfully",
+          data: skills
+        });
+    
+      } catch (error) {
+        console.error('Error retrieving skills:', error);
+        return res.status(500).json({
+          success: false,
+          message: "Error retrieving skills",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+  
 
 }
 

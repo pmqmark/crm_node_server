@@ -265,6 +265,10 @@ router.delete('/reviews', (req, res) => {
 });
 
 
+router.get('/employee-skills/:id', (req, res) => {
+    adminController.getEmployeeSkills(req, res);
+});
+
 export default router;
 
 
