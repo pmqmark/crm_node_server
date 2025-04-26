@@ -381,14 +381,24 @@ export class AdminController {
 
   async listSchedules(req: Request, res: Response): Promise<Response> {
     try {
-      const schedules = await Schedule.find();
+      const schedules = await Schedule.find()
+      .populate({
+        path:'employee_ids',
+        select:'firstName lastName'
+      })
+      .populate({
+        path:'created_by',
+        select:'firstName lastName'
+      })
 
       return res.status(200).json({
-        message: "clients retrieved successfully",
+        success:true,
+        message: "Schedules retrieved successfully",
         data: schedules
       });
     } catch (error) {
       return res.status(500).json({
+        success: false,
         message: "Error retrieving employees",
         error: error instanceof Error ? error.message : "Unknown error",
       });
