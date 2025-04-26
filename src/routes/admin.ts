@@ -273,6 +273,20 @@ router.get("/employee-attendance-analytics/:id", authMiddleware, (req, res) => {
   adminController.getEmpAttendanceAnalytics(req, res);
 });
 
+
+router.get('/attendance/periodicaly', (req, res) => {
+    adminController.getPeriodicAttendance(req, res)
+})
+
+
+router.get('/fetch-task-statistics', (req, res) => {
+    adminController.getTaskStatistics(req, res)
+})
+
+router.get('/employee-chart', (req, res) => {
+    adminController.getEmployeeChart(req, res)
+})
+
 export default router;
 
 

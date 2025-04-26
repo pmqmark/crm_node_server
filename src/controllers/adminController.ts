@@ -21,6 +21,9 @@ import Task from "../models/tasks";
 import Schedule from "../models/schedules";
 import { Review } from "../models/review";
 import Skill from '../models/skill';
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import dayjs from 'dayjs'; 
+
 
 interface CreateScheduleDto {
   employee_ids: string[];
@@ -142,7 +145,7 @@ export class AdminController {
   private getWeekdaysCount(startDate: Date, endDate: Date): number {
     let count = 0;
     const currentDate = new Date(startDate);
-    
+
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay();
       // Count Monday (1) through Friday (5)
@@ -151,7 +154,7 @@ export class AdminController {
       }
       currentDate.setDate(currentDate.getDate() + 1);
     }
-    
+
     return count;
   }
 
@@ -1843,9 +1846,9 @@ export class AdminController {
       stats.absent = Math.max(0, stats.absent);
 
       // Calculate percentages
-      stats.presentPercentage = (stats.present / totalEmployees) * 100;
-      stats.halfDayPercentage = (stats.halfDay / totalEmployees) * 100;
-      stats.absentPercentage = (stats.absent / totalEmployees) * 100;
+      stats.presentPercentage = totalEmployees > 0 ? (stats.present / totalEmployees) * 100 : 0;
+      stats.halfDayPercentage = totalEmployees > 0 ? (stats.halfDay / totalEmployees) * 100 : 0;
+      stats.absentPercentage = totalEmployees > 0 ? (stats.absent / totalEmployees) * 100 : 0;
 
       return stats;
 
@@ -1885,6 +1888,7 @@ export class AdminController {
         'WFH': 0
       };
 
+
       // Fill in actual counts with type checking
       counts.forEach(item => {
         const status = item._id as StatusType;
@@ -1894,12 +1898,14 @@ export class AdminController {
       });
 
       return res.status(200).json({
+        success: true,
         message: "Employee status counts retrieved successfully",
         data: statusCounts
       });
 
     } catch (error) {
       return res.status(500).json({
+        success: false,
         message: "Error retrieving employee counts",
         error: error instanceof Error ? error.message : "Unknown error"
       });
@@ -3414,39 +3420,39 @@ export class AdminController {
 
 
   async getEmployeeSkills(req: AuthRequest, res: Response): Promise<Response> {
-      try {
-        const {id} = req.params;
+    try {
+      const { id } = req.params;
 
-        if (!isValidObjectId(id)) {
-          return res.status(401).json({
-            success: false,
-            message: "Employee ID is missing"
-          });
-        }
-    
-        // Find all skills for this employee, sorted by name
-        const skills = await Skill.find({
-          employee_id: new Types.ObjectId(id)
-        }).sort({ name: 1 });
-    
-        return res.status(200).json({
-          success: true,
-          message: "Skills retrieved successfully",
-          data: skills
-        });
-    
-      } catch (error) {
-        console.error('Error retrieving skills:', error);
-        return res.status(500).json({
+      if (!isValidObjectId(id)) {
+        return res.status(401).json({
           success: false,
-          message: "Error retrieving skills",
-          error: error instanceof Error ? error.message : "Unknown error"
+          message: "Employee ID is missing"
         });
       }
-    }
-  
 
-async getEmpAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Response> {
+      // Find all skills for this employee, sorted by name
+      const skills = await Skill.find({
+        employee_id: new Types.ObjectId(id)
+      }).sort({ name: 1 });
+
+      return res.status(200).json({
+        success: true,
+        message: "Skills retrieved successfully",
+        data: skills
+      });
+
+    } catch (error) {
+      console.error('Error retrieving skills:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving skills",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async getEmpAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Response> {
     try {
       const employeeId = req.params.id;
 
@@ -3456,33 +3462,33 @@ async getEmpAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Respon
           message: "Employee ID is missing"
         });
       }
-      
+
       // Get date ranges
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      
+
       // Start of current week (Sunday)
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - today.getDay());
       startOfWeek.setHours(0, 0, 0, 0);
-      
+
       // Start of current month
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      
+
       // Get today's attendance record
       const todayAttendance = await AttendanceLog.findOne({
         employee_id: employeeId,
         date: { $gte: today, $lt: tomorrow }
       });
-  
+
       // Calculate today's hours
       let hoursToday = 0;
       let currentStatus = 'Not Checked In';
       let isPunchedIn = false;
-      
+
       if (todayAttendance) {
         if (todayAttendance.punchOut) {
           // Completed shift
@@ -3496,62 +3502,62 @@ async getEmpAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Respon
           currentStatus = 'Working';
         }
       }
-  
+
       // Get weekly hours
       const weeklyLogs = await AttendanceLog.find({
         employee_id: employeeId,
         date: { $gte: startOfWeek, $lt: tomorrow }
       });
-      
+
       let hoursThisWeek = 0;
       weeklyLogs.forEach(log => {
         if (log.punchOut) {
           hoursThisWeek += log.totalHours;
         }
       });
-      
+
       // Add today's ongoing hours if still punched in
       if (isPunchedIn) {
         hoursThisWeek += hoursToday;
       }
-  
+
       // Get monthly hours and attendance status counts
       const monthlyLogs = await AttendanceLog.find({
         employee_id: employeeId,
         date: { $gte: startOfMonth, $lt: tomorrow }
       });
-      
+
       let hoursThisMonth = 0;
       monthlyLogs.forEach(log => {
         if (log.punchOut) {
           hoursThisMonth += log.totalHours;
         }
       });
-      
+
       // Add today's ongoing hours if still punched in
       if (isPunchedIn) {
         hoursThisMonth += hoursToday;
       }
-      
+
       // Calculate attendance status counts for current month
       const presentDays = monthlyLogs.filter(log => log.status === 'Present').length;
       const halfDays = monthlyLogs.filter(log => log.status === 'Half-Day').length;
       const absentDays = monthlyLogs.filter(log => log.status === 'Absent').length;
-  
+
       // Calculate total expected workdays in the month so far
       const workdaysInMonthSoFar = this.getWeekdaysCount(startOfMonth, today);
-      
+
       // Calculate attendance percentage
-      const attendancePercentage = workdaysInMonthSoFar > 0 
-        ? Math.round(((presentDays + (halfDays * 0.5)) / workdaysInMonthSoFar) * 100) 
+      const attendancePercentage = workdaysInMonthSoFar > 0
+        ? Math.round(((presentDays + (halfDays * 0.5)) / workdaysInMonthSoFar) * 100)
         : 0;
-  
+
       // Format the time for display
       const formatTime = (hours: number): string => {
         const totalMinutes = Math.round(hours * 60);
         const hrs = Math.floor(totalMinutes / 60);
         const mins = totalMinutes % 60;
-        
+
         if (hrs === 0) {
           return `${mins} minutes`;
         } else if (mins === 0) {
@@ -3560,7 +3566,7 @@ async getEmpAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Respon
           return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${mins} minutes`;
         }
       };
-      
+
       return res.status(200).json({
         success: true,
         message: "Attendance analytics retrieved successfully",
@@ -3588,7 +3594,7 @@ async getEmpAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Respon
           }
         }
       });
-      
+
     } catch (error) {
       console.error('Error retrieving attendance analytics:', error);
       return res.status(500).json({
@@ -3598,6 +3604,280 @@ async getEmpAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Respon
       });
     }
   }
+
+  private async getAbsentEmployees(period: 'daily' | 'weekly' | 'monthly') {
+    let startDate: Date;
+    let endDate: Date = new Date();
+
+    const today = new Date();
+
+    if (period === 'daily') {
+      startDate = startOfDay(today);
+      endDate = endOfDay(today);
+    } else if (period === 'weekly') {
+      startDate = startOfWeek(today, { weekStartsOn: 0 }); // sunday
+      endDate = endOfWeek(today, { weekStartsOn: 0 });
+    } else if (period === 'monthly') {
+      startDate = startOfMonth(today);
+      endDate = endOfMonth(today);
+    } else {
+      throw new Error('Invalid period');
+    }
+
+    const absentLogs = await AttendanceLog.find({
+      status: 'Absent',
+      date: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    })
+    .populate({
+      path: 'employee_id',
+      select: 'employee_id firstName lastName' 
+    })
+    .exec();
+
+    const absentEmployees = absentLogs.map(log => {
+      const employee = log.employee_id as any;
+      return {
+        id: employee.employee_id,
+        name: `${employee.firstName} ${employee.lastName}`
+      };
+    });
+
+    return absentEmployees;
+  }
+
+  async getPeriodicAttendance(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      const { period } = req.query;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      
+      
+      let stats;
+      if (period === 'monthly') {
+        const monthlyStats = await this.getAttendanceStats(startOfMonth, new Date());
+        stats = monthlyStats;
+      }
+      else if (period === 'weekly') {
+        const weeklyStats = await this.getAttendanceStats(startOfWeek, new Date());
+        stats = weeklyStats
+      }
+      else {
+        const dailyStats = await this.getAttendanceStats(today, new Date());
+        stats = dailyStats
+      }
+
+      const absentEmployees = await this.getAbsentEmployees(period as 'daily' | 'weekly' | 'monthly');
+
+      const result = {
+        totalAttendance: stats.totalEmployees,
+        attendanceData: [
+          { status: 'Present', percentage: stats?.presentPercentage, color: '#22c55e' },
+          { status: 'Absent', percentage: stats?.absentPercentage, color: '#ef4444' },
+          { status: 'Half-day', percentage: stats?.halfDayPercentage, color: '#f59e0b' },
+        ],
+        absentEmployees
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Attendance analytics retrieved successfully",
+        data: result
+      })
+
+    } catch (error) {
+      console.error('Error retrieving attendance analytics:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving attendance analytics",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async getTaskStatisticsForDashboard(req: Request, res: Response): Promise<Response> {
+    try {
+      const taskStats = await Task.aggregate([
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          }
+        }
+      ]);
+  
+      const statusColorMap: Record<string, string> = {
+        'Completed': '#22c55e',
+        'Ongoing': '#3b82f6',
+        'On Hold': '#f59e0b',
+        'Overdue': '#ef4444'
+      };
+  
+      let totalTasks = 0;
+      const statusCounts: Record<string, number> = {
+        'Completed': 0,
+        'Ongoing': 0,
+        'On Hold': 0,
+        'Overdue': 0
+      };
+  
+      taskStats.forEach(stat => {
+        const status = stat._id;
+        if (status in statusCounts) {
+          statusCounts[status] = stat.count;
+          totalTasks += stat.count;
+        }
+      });
+  
+      const taskData = Object.keys(statusCounts).map(status => {
+        const count = statusCounts[status];
+        const percentage = totalTasks > 0 ? Number(((count / totalTasks) * 100).toFixed(2)) : 0;
+        return {
+          status: status as 'Completed' | 'Ongoing' | 'On Hold' | 'Overdue',
+          percentage,
+          color: statusColorMap[status]
+        };
+      });
+  
+      return res.status(200).json({
+        success:true,
+        message: "Task statistics retrieved successfully",
+        data: {
+          totalTasks: totalTasks,
+          taskData
+        }
+      });
+  
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        success:false,
+        message: "Error retrieving task statistics",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+
+
+async getEmployeeChart(req: Request, res: Response): Promise<Response> {
+  try {
+    const period = (req.query.period as string)?.toLowerCase() || 'week'; 
+
+    const now = dayjs();
+
+    let thisPeriodStart: Date, thisPeriodEnd: Date;
+    let lastPeriodStart: Date, lastPeriodEnd: Date;
+
+    if (period === 'month') {
+      thisPeriodStart = now.startOf('month').toDate();
+      thisPeriodEnd = now.endOf('day').toDate(); // till today
+
+      lastPeriodStart = now.subtract(1, 'month').startOf('month').toDate();
+      lastPeriodEnd = now.subtract(1, 'month').endOf('month').toDate();
+    } else {
+      // Default to week
+      thisPeriodStart = now.startOf('week').toDate(); // Monday
+      thisPeriodEnd = now.endOf('day').toDate(); // till today
+
+      lastPeriodStart = now.subtract(1, 'week').startOf('week').toDate(); // Last Monday
+      lastPeriodEnd = now.subtract(1, 'week').endOf('week').toDate(); // Last Sunday
+    }
+
+    const departmentStats = await Employee.aggregate([
+      {
+        $group: {
+          _id: '$department_id',
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $lookup: {
+          from: 'departments',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'department'
+        }
+      },
+      {
+        $unwind: {
+          path: '$department',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          departmentName: { $ifNull: ['$department.name', 'Unknown'] },
+          count: 1
+        }
+      }
+    ]);
+
+    const labels: string[] = [];
+    const data: number[] = [];
+
+    departmentStats.forEach(stat => {
+      labels.push(stat.departmentName);
+      data.push(stat.count);
+    });
+
+    const thisPeriodHires = await Employee.countDocuments({
+      hireDate: { $gte: thisPeriodStart, $lte: thisPeriodEnd }
+    });
+
+    const lastPeriodHires = await Employee.countDocuments({
+      hireDate: { $gte: lastPeriodStart, $lte: lastPeriodEnd }
+    });
+
+    let growthPercentage = 0;
+    if (lastPeriodHires > 0) {
+      growthPercentage = ((thisPeriodHires - lastPeriodHires) / lastPeriodHires) * 100;
+    } else if (thisPeriodHires > 0) {
+      growthPercentage = 100;
+    } else {
+      growthPercentage = 0;
+    }
+
+    growthPercentage = Number(growthPercentage.toFixed(2));
+
+    return res.status(200).json({
+      success: true,
+      message: "Employee chart data retrieved successfully",
+      data: {
+          departments: {
+            labels,
+            data
+          },
+          growth: {
+            percentage: growthPercentage,
+            period: period.charAt(0).toUpperCase() + period.slice(1) 
+          }
+      }
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving employee chart data",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
 
 }
 
