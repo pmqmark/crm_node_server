@@ -13,6 +13,7 @@ import Invoice from '../models/invoice';
 import Admin from '../models/admin';
 import { Review } from '../models/review';
 import Task from '../models/tasks';
+import dayjs from 'dayjs';
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -1479,5 +1480,146 @@ export class ClientController {
     }
   }
 
+  /**
+   Get a report of tasks completed per month for all projects of the logged-in client
+   */
+  async getMonthlyTaskCompletionReport(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "User not authenticated or client ID is missing"
+        });
+      }
+      const clientId = new Types.ObjectId(req.user.id);
 
+      // Get year from request body
+      const { year } = req.body;
+
+      if (!year || typeof year !== 'number' || !/^\d{4}$/.test(year.toString())) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid 4-digit numeric year is required in the request body."
+        });
+      }
+      const requestedYear = year; // Already a number after validation
+
+      const now = dayjs();
+      const currentYear = now.year();
+      const currentMonthIndex = now.month(); // 0 for January, 11 for December
+
+      // 1. Find all projects for the logged-in client
+      const clientProjects = await Project.find({ client: clientId }).select('_id');
+      const reportData: { monthLabel: string; year: number; month: number; count: number }[] = [];
+
+      if (!clientProjects || clientProjects.length === 0) {
+        // If no projects, return 0 for all 12 months of the requested year
+        for (let m = 0; m < 12; m++) {
+          const monthDate = dayjs().year(requestedYear).month(m);
+          reportData.push({
+            monthLabel: monthDate.format("MMM"),
+            year: requestedYear,
+            month: m + 1,
+            count: 0
+          });
+        }
+        return res.status(200).json({
+          success: true,
+          message: `No projects found for this client. Monthly report for ${requestedYear} shows 0 completions.`,
+          data: reportData
+        });
+      }
+      const projectIds = clientProjects.map(p => p._id);
+
+      // 2. Determine the date range for task aggregation
+      let startDateForQuery: Date;
+      let endDateForQuery: Date;
+      let performAggregation = true;
+
+      if (requestedYear < currentYear) {
+        startDateForQuery = dayjs().year(requestedYear).startOf('year').toDate();
+        endDateForQuery = dayjs().year(requestedYear).endOf('year').toDate();
+      } else if (requestedYear === currentYear) {
+        startDateForQuery = dayjs().year(requestedYear).startOf('year').toDate();
+        endDateForQuery = now.endOf('day').toDate();
+      } else {
+        performAggregation = false;
+        startDateForQuery = dayjs().year(requestedYear).startOf('year').toDate(); // Dummy
+        endDateForQuery = dayjs().year(requestedYear).endOf('year').toDate();   // Dummy
+      }
+
+      const completionMap = new Map<number, number>();
+
+      if (performAggregation) {
+        const monthlyCompletions = await Task.aggregate([
+          {
+            $match: {
+              project_id: { $in: projectIds },
+              status: 'Completed',
+              updatedAt: {
+                $gte: startDateForQuery,
+                $lte: endDateForQuery
+              }
+            }
+          },
+          {
+            $project: {
+              year: { $year: "$updatedAt" },  // <-- Add this to project the year
+              month: { $month: "$updatedAt" } // $month returns 1-12
+            }
+          },
+          {
+            $group: {
+              _id: { year: "$year", month: "$month" }, // <-- Group by the projected year and month
+              completedTasks: { $sum: 1 }
+            }
+          }
+          // Optional: Add a sort stage if the order matters for the completionMap,
+          // though the final reportData loop re-orders by month anyway.
+          // {
+          //   $sort: { "_id.year": 1, "_id.month": 1 }
+          // }
+        ]);
+        monthlyCompletions.forEach(item => {
+          // item._id will now be like { year: 2024, month: 5 }
+          completionMap.set(item._id.month, item.completedTasks);
+        });
+      }
+
+      // 3. Format the data for all 12 months of the requested year
+      for (let m = 0; m < 12; m++) {
+        const monthDate = dayjs().year(requestedYear).month(m);
+        const monthForOutput = m + 1;
+        let count = 0;
+
+        if (requestedYear < currentYear) {
+          count = completionMap.get(monthForOutput) || 0;
+        } else if (requestedYear === currentYear) {
+          if (m <= currentMonthIndex) {
+            count = completionMap.get(monthForOutput) || 0;
+          }
+        }
+        reportData.push({
+          monthLabel: monthDate.format("MMM"), // Changed format here
+          year: requestedYear,
+          month: monthForOutput,
+          count: count
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Monthly task completion report for ${requestedYear} retrieved successfully.`,
+        data: reportData
+      });
+
+    } catch (error) {
+      console.error('Error retrieving monthly task completion report:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving monthly task completion report",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
 }
