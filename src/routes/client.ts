@@ -76,4 +76,8 @@ router.get('/overview/projects', (req, res) => {
   clientController.getClientProjectOverview(req, res);
 });
 
+router.post('/reports/monthly-task-completion', authMiddleware, (req, res) => {
+  clientController.getMonthlyTaskCompletionReport(req, res);
+});
+
 export default router;
