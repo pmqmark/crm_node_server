@@ -59,4 +59,21 @@ router.get("/my-profile", authMiddleware, (req, res) => {
   clientController.getMyClientProfile(req, res);
 });
 
+
+router.post('/reviews', (req, res) => {
+  clientController.createReview(req, res);
+});
+
+router.get('/reviews', (req, res) => {
+  clientController.getClientReviews(req, res);
+});
+
+router.delete('/reviews', (req, res) => {
+  clientController.deleteReview(req, res);
+});
+
+router.get('/overview/projects', (req, res) => {
+  clientController.getClientProjectOverview(req, res);
+});
+
 export default router;
