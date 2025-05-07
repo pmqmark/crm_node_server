@@ -31,6 +31,7 @@ export interface IUser extends Document {
     postalcode: string;
     employeebio: string;
     status: 'Full-Time' | 'Contract' | 'Probation' | 'WFH';
+    leaveRef: Schema.Types.ObjectId;
   }
   
 export interface CreateUserDto {

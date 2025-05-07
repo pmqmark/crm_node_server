@@ -301,8 +301,29 @@ router.get('/get-policy', (req, res) => {
     adminController.getPolicy(req, res);
 })
 
+router.post('/create-leave-policy', (req, res) => {
+    adminController.createLeaveForEmp(req,res)
+
+})
 
 
+router.get('/get-leaves',(req, res) => {
+    adminController.getLeavepolicyForEmp(req,res)
+})
+
+
+router.put('/update-defleave',(req, res) => {
+    adminController.updateDefaultLeave(req,res)
+})
+
+router.get('/leave/:id',(req,res)=>{
+    adminController.getLeaveById(req,res)
+})
+
+
+router.put('/update-leave-policy/:id',(req,res)=>{
+    adminController.updateLeaveById(req,res)
+})
 
 
 export default router;
