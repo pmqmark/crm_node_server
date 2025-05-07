@@ -287,6 +287,24 @@ router.get('/employee-chart', (req, res) => {
     adminController.getEmployeeChart(req, res)
 })
 
+
+router.post('/create-policy',(req, res) => {
+
+    adminController.createPolicy(req, res);
+})
+
+router.put('/update-policy',(req, res) => {
+    adminController.updatePolicy(req, res);
+})
+
+router.get('/get-policy', (req, res) => {
+    adminController.getPolicy(req, res);
+})
+
+
+
+
+
 export default router;
 
 
