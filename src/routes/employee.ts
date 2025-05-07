@@ -142,4 +142,8 @@ router.post('/send-birthday-wish', authMiddleware, (req, res) => {
     employeeController.sendBirthdayWish(req, res);
 });
 
+router.get('/common-leave-policy', authMiddleware, (req, res) => {
+  employeeController.getCommonLeavePolicy(req, res);
+});
+
 export default router;

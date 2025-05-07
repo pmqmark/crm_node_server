@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose, { Types } from 'mongoose';
+import dayjs from 'dayjs'; // For easier date handling
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'; // << IMPORT THE PLUGIN
 import Employee from "../models/employee";
 import Department from "../models/department";
 import Role from '../models/role';
@@ -15,6 +17,10 @@ import Ticket from '../models/ticket';
 import Admin from "../models/admin";
 import { Client } from "../models/client";
 import BirthdayWish from "../models/birthdayWish";
+import Policy from '../models/policy'; 
+import LeaveForEmp, { ILeaveForEmp } from '../models/leaveforemp'; 
+
+dayjs.extend(isSameOrAfter); // << EXTEND DAYJS WITH THE PLUGIN
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -63,6 +69,8 @@ interface TeamBirthdayEmployeeViewModel {
     roleName: string; 
     hasWishedToday: boolean; 
 }
+
+
 
 export class EmployeeController {
 
@@ -2996,6 +3004,128 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
         return res.status(500).json({
             success: false,
             message: "Error sending birthday wish",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+  }
+
+  /**
+   * Retrieves the common company leave policy for all employees.
+   * This includes the general policy text, default leave entitlements, company holidays for the year,
+   * the next upcoming holiday, AND any employee-specific leave policies.
+   * Aligned to accept standard express.Request and handle AuthRequest internally.
+   */
+  async getCommonLeavePolicy(req: Request, res: Response): Promise<Response> { // Accepts standard Request
+    try {
+        // Cast req to AuthRequest to safely access the user property
+        const authReq = req as AuthRequest;
+
+        // Ensure user is authenticated to view company information
+        if (!authReq.user || !authReq.user.id) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized: User ID is missing"
+            });
+        }
+
+        const currentYear = new Date().getFullYear();
+        const today = dayjs().startOf('day');
+
+        // 1. Fetch the general company policy (latest version)
+        const companyPolicyDocument = await Policy.findOne()
+            .sort({ updatedAt: -1 })
+            .select('title content dated updatedAt')
+            .lean();
+
+        // 2. Fetch the current default leave rules applicable to all employees
+        let defaultLeaveRules: ILeaveForEmp | null = await LeaveForEmp.findOne({ isDefault: true, year: currentYear })
+            .select('name description days year isDefault') // Added isDefault for clarity
+            .lean<ILeaveForEmp>();
+        
+        if (!defaultLeaveRules) {
+            defaultLeaveRules = await LeaveForEmp.findOne({ isDefault: true })
+                .sort({ year: -1 })
+                .select('name description days year isDefault') // Added isDefault for clarity
+                .lean<ILeaveForEmp>();
+        }
+
+        // 3. Fetch company holidays for the current year, sorted chronologically
+        const companyHolidays = await LeaveForEmp.find({ isHoliday: true, year: currentYear })
+            .select('name holidayDate description year isHoliday') // Added isHoliday for clarity
+            .sort({ holidayDate: 1 })
+            .lean<ILeaveForEmp[]>();
+
+        // 4. Fetch employee-specific leave policy
+        let employeeSpecificPolicy: ILeaveForEmp | null = null;
+        const employee = await Employee.findById(authReq.user.id).select('leaveRef');
+
+        if (employee && employee.leaveRef) {
+            const specificPolicyDoc = await LeaveForEmp.findById(employee.leaveRef)
+                .select('name description days year isSpecific') // Select relevant fields
+                .lean<ILeaveForEmp>();
+            
+            // Only consider it if it's explicitly marked as specific
+            if (specificPolicyDoc && specificPolicyDoc.isSpecific) {
+                employeeSpecificPolicy = specificPolicyDoc;
+            }
+        }
+
+        // 5. Determine the next upcoming holiday
+        let nextUpcomingHolidayData: { name: string; date: Date; description?: string; daysUntil: number } | null = null;
+        
+        const upcomingHolidaysFromToday = companyHolidays.filter(h => 
+            h.holidayDate && dayjs(h.holidayDate).isSameOrAfter(today)
+        );
+
+        if (upcomingHolidaysFromToday.length > 0) {
+            const nextHolidayDoc = upcomingHolidaysFromToday[0];
+            if (nextHolidayDoc.holidayDate) { 
+                const daysUntil = dayjs(nextHolidayDoc.holidayDate).diff(today, 'day');
+                nextUpcomingHolidayData = {
+                    name: nextHolidayDoc.name,
+                    date: nextHolidayDoc.holidayDate,
+                    description: nextHolidayDoc.description,
+                    daysUntil: daysUntil
+                };
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Common and specific leave policy details retrieved successfully.",
+            data: {
+                generalPolicy: companyPolicyDocument ? {
+                    title: companyPolicyDocument.title,
+                    content: companyPolicyDocument.content,
+                    effectiveDate: companyPolicyDocument.dated,
+                    lastUpdated: companyPolicyDocument.updatedAt
+                } : null,
+                defaultLeaveRules: defaultLeaveRules ? {
+                    name: defaultLeaveRules.name,
+                    description: defaultLeaveRules.description,
+                    daysAllowed: defaultLeaveRules.days,
+                    applicableYear: defaultLeaveRules.year
+                } : null,
+                employeeSpecificPolicy: employeeSpecificPolicy ? { // New field for specific policy
+                    name: employeeSpecificPolicy.name,
+                    description: employeeSpecificPolicy.description,
+                    daysAllowed: employeeSpecificPolicy.days,
+                    applicableYear: employeeSpecificPolicy.year
+                } : null,
+                nextUpcomingHoliday: nextUpcomingHolidayData,
+                companyHolidays: companyHolidays.map(h => ({
+                    name: h.name,
+                    date: h.holidayDate,
+                    description: h.description
+                }))
+            }
+        });
+
+    } catch (error) {
+        console.error('Error retrieving common and specific leave policy details:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error retrieving common and specific leave policy details",
             error: error instanceof Error ? error.message : "Unknown error"
         });
     }
