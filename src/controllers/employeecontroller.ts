@@ -17,8 +17,8 @@ import Ticket from '../models/ticket';
 import Admin from "../models/admin";
 import { Client } from "../models/client";
 import BirthdayWish from "../models/birthdayWish";
-import Policy from '../models/policy'; 
-import LeaveForEmp, { ILeaveForEmp } from '../models/leaveforemp'; 
+import LeaveForEmp, { ILeaveForEmp } from '../models/leaveforemp';
+import Policy from '../models/policy';
 dayjs.extend(isSameOrAfter); // << EXTEND DAYJS WITH THE PLUGIN
 
 export interface AuthRequest extends Request {
