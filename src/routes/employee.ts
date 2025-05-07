@@ -142,4 +142,39 @@ router.post('/send-birthday-wish', authMiddleware, (req, res) => {
     employeeController.sendBirthdayWish(req, res);
 });
 
+router.get('/get-attendence', (req, res, next) => {
+
+  employeeController.getAttendanceLogs(req, res)
+})
+
+
+router.get('/attendance/daily', (req, res) => {
+  employeeController.getDailyAttendance(req, res)
+})
+
+router.get('/attendance/weekly', (req, res) => {
+  employeeController.getWeeklyAttendance1(req, res)
+})
+
+
+router.get('/attendance/monthly', (req, res) => {
+  employeeController.getMonthlyAttendance(req, res)
+})
+
+
+
+router.get('/leave/:id',(req,res)=>{
+  employeeController.getLeaveById(req,res)
+})
+
+router.get('/get-leaves',(req, res) => {
+  employeeController.getLeavepolicyForEmp(req,res)
+})
+
+router.get('/get-policy', (req, res) => {
+  employeeController.getPolicy(req, res);
+})
+
+
+
 export default router;
