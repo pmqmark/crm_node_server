@@ -14,6 +14,7 @@ import Todo from '../models/todo';
 import Ticket from '../models/ticket';
 import Admin from "../models/admin";
 import { Client } from "../models/client";
+import BirthdayWish from "../models/birthdayWish";
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -53,6 +54,14 @@ interface IPopulatedRole {
   _id: Types.ObjectId;
   name: string;
   description: string;
+}
+
+interface TeamBirthdayEmployeeViewModel {
+    employeeId: string;
+    firstName: string;
+    lastName: string;
+    roleName: string; 
+    hasWishedToday: boolean; 
 }
 
 export class EmployeeController {
@@ -2803,6 +2812,192 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
         message: "Error retrieving ticket timeline",
         error: error instanceof Error ? error.message : "Unknown error"
       });
+    }
+  }
+
+  /**
+   * Get team members (same department OR same projects) whose birthday is today.
+   * Displays their role and whether the current user has wished them.
+   */
+  async getTodaysTeamBirthdays(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized: User ID is missing" });
+        }
+        const currentEmployeeId = new Types.ObjectId(req.user.id);
+
+        const currentUser = await Employee.findById(currentEmployeeId).select('department_id');
+        if (!currentUser) {
+            return res.status(404).json({ success: false, message: "Current user not found." });
+        }
+
+        const today = new Date();
+        const currentMonth = today.getMonth() + 1; // MongoDB $month is 1-12
+        const currentDay = today.getDate();     // MongoDB $dayOfMonth is 1-31
+        // Create a date object representing today at midnight for consistent wishDate comparison
+        const todayDateOnly = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+
+
+        // 1. Get project IDs current user is part of
+        // Assuming Project model has fields like teamMembers, teamLeaders, managers
+        const currentUserProjects = await Project.find({
+            $or: [
+                { teamMembers: currentEmployeeId },
+                { teamLeaders: currentEmployeeId },
+                { managers: currentEmployeeId } // Adjust based on your Project schema
+            ]
+        }).select('_id');
+        const currentUserProjectIds = new Set(currentUserProjects.map(p => p._id.toString()));
+
+        // 2. Find all other employees, populate their role
+        // Ensure Employee model has 'dob', 'department_id', 'role_id'
+        // Ensure Role model has 'name'
+        const potentialColleagues = await Employee.find({
+            _id: { $ne: currentEmployeeId }, // Exclude the current user
+            dob: { $exists: true, $ne: null } // Ensure dob exists
+        }).populate<{ role_id: { _id: Types.ObjectId, name: string } | null }>('role_id', 'name')
+          .select('firstName lastName dob department_id role_id');
+
+        const birthdayTeamMembersMap = new Map<string, TeamBirthdayEmployeeViewModel>();
+
+        for (const colleague of potentialColleagues) {
+            if (!colleague.dob) continue; // Should be caught by query, but good practice
+
+            const dobMonth = colleague.dob.getMonth() + 1;
+            const dobDay = colleague.dob.getDate();
+
+            if (dobMonth === currentMonth && dobDay === currentDay) {
+                // It's their birthday, now check if they are a "team member"
+                let isTeamMember = false;
+
+                // Check 1: Same department (if current user has a department)
+                if (currentUser.department_id && colleague.department_id &&
+                    colleague.department_id.toString() === currentUser.department_id.toString()) {
+                    isTeamMember = true;
+                }
+
+                // Check 2: Shared project (if not already confirmed by department)
+                if (!isTeamMember && currentUserProjectIds.size > 0) {
+                    // Check if this colleague is part of any of the current user's projects
+                    const colleagueIsInSharedProject = await Project.exists({
+                        _id: { $in: Array.from(currentUserProjectIds).map(id => new Types.ObjectId(id)) }, // Projects current user is in
+                        $or: [ // Check if colleague is in any of those projects
+                            { teamMembers: colleague._id },
+                            { teamLeaders: colleague._id },
+                            { managers: colleague._id }
+                        ]
+                    });
+                    if (colleagueIsInSharedProject) {
+                        isTeamMember = true;
+                    }
+                }
+
+                if (isTeamMember) {
+                    const colleagueIdStr = colleague._id.toString();
+                    // Add to map only if not already present (handles duplicates if in same dept AND project)
+                    if (!birthdayTeamMembersMap.has(colleagueIdStr)) {
+                        const wishSent = await BirthdayWish.findOne({
+                            wisherEmployeeId: currentEmployeeId,
+                            birthdayEmployeeId: colleague._id,
+                            wishDate: todayDateOnly // Compare against date only
+                        });
+
+                        const roleName = colleague.role_id ? colleague.role_id.name : 'N/A';
+
+                        birthdayTeamMembersMap.set(colleagueIdStr, {
+                            employeeId: colleagueIdStr,
+                            firstName: colleague.firstName,
+                            lastName: colleague.lastName,
+                            roleName: roleName,
+                            hasWishedToday: !!wishSent
+                        });
+                    }
+                }
+            }
+        }
+
+        const results = Array.from(birthdayTeamMembersMap.values());
+
+        if (results.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: "No team members have a birthday today.",
+                data: []
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Team birthdays retrieved successfully.",
+            data: results
+        });
+
+    } catch (error) {
+        console.error('Error retrieving team birthdays:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error retrieving team birthdays",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+  }
+
+  /**
+   * Record that the current employee has sent a birthday wish to a colleague.
+   */
+  async sendBirthdayWish(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized: User ID is missing" });
+        }
+        const wisherEmployeeId = new Types.ObjectId(req.user.id);
+        const { colleagueEmployeeId } = req.body; // The ID of the employee whose birthday it is
+
+        if (!colleagueEmployeeId || !Types.ObjectId.isValid(colleagueEmployeeId)) {
+            return res.status(400).json({ success: false, message: "Valid colleagueEmployeeId is required." });
+        }
+
+        const colleagueIdAsObject = new Types.ObjectId(colleagueEmployeeId);
+
+        // Optional: Verify it's actually their birthday.
+        // This is a good server-side check even if the frontend filters.
+        const colleague = await Employee.findById(colleagueIdAsObject).select('dob');
+        if (!colleague || !colleague.dob) {
+             return res.status(404).json({ success: false, message: "Colleague or their date of birth not found." });
+        }
+        const today = new Date();
+        if (colleague.dob.getUTCMonth() !== today.getUTCMonth() || colleague.dob.getUTCDate() !== today.getUTCDate()) {
+             return res.status(400).json({ success: false, message: "It's not this colleague's birthday today." });
+        }
+        // --- End Optional Verification ---
+
+        const todayDateOnly = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+
+        // Attempt to create a new wish. The unique index on BirthdayWish model will prevent duplicates.
+        const newWish = new BirthdayWish({
+            wisherEmployeeId,
+            birthdayEmployeeId: colleagueIdAsObject,
+            wishDate: todayDateOnly
+        });
+        await newWish.save();
+
+        // You might want to trigger a notification here if you have a system for it.
+
+        return res.status(201).json({
+            success: true,
+            message: "Birthday wish sent successfully!"
+        });
+
+    } catch (error: any) {
+        console.error('Error sending birthday wish:', error);
+        if (error.code === 11000) { // Handle duplicate key error from unique index
+            return res.status(409).json({ success: true, message: "Wish already sent today." });
+        }
+        return res.status(500).json({
+            success: false,
+            message: "Error sending birthday wish",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
     }
   }
 }

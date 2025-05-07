@@ -134,4 +134,12 @@ router.post('/ticket-timeline', (req, res) => {
    employeeController.getTicketTimeline(req, res);
   });
 
+router.get('/team-birthdays-today', authMiddleware, (req, res) => {
+   employeeController.getTodaysTeamBirthdays(req, res);
+});
+
+router.post('/send-birthday-wish', authMiddleware, (req, res) => {
+    employeeController.sendBirthdayWish(req, res);
+});
+
 export default router;
