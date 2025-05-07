@@ -23,6 +23,7 @@ import { Review } from "../models/review";
 import Skill from '../models/skill';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import dayjs from 'dayjs'; 
+import Policy from "../models/policy";
 
 
 interface CreateScheduleDto {
@@ -1138,6 +1139,182 @@ export class AdminController {
       return res.status(500).json({
         success: false,
         message: "Error creating invoice",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async getPolicy(req: Request, res: Response): Promise<Response> {
+    try {
+      // Get the latest policy document
+      const policy = await Policy.findOne()
+        .sort({ updatedAt: -1 });
+  
+      if (!policy) {
+        return res.status(404).json({
+          success: false,
+          message: "No policy found"
+        });
+      }
+  
+      return res.status(200).json({
+        success: true,
+        message: "Policy retrieved successfully",
+        data: {
+          title: policy.title,
+          content: policy.content,
+          dated: policy.dated,
+          updatedAt: policy.updatedAt,
+          createdAt: policy.createdAt
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving policy:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving policy",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+
+  async updatePolicy(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Admin ID is missing"
+        });
+      }
+  
+      const { title, content, dated } = req.body;
+  
+      // Validate required fields
+      if (!title || !content) {
+        return res.status(400).json({
+          success: false,
+          message: "Title and content are required"
+        });
+      }
+  
+      // Find existing policy - there should only be one
+      const existingPolicy = await Policy.findOne();
+      if (!existingPolicy) {
+        return res.status(404).json({
+          success: false,
+          message: "No policy found to update"
+        });
+      }
+  
+      // Update policy
+      const updatedPolicy = await Policy.findByIdAndUpdate(
+        existingPolicy._id,
+        {
+          $set: {
+            title,
+            content,
+            dated: dated || new Date(),
+            updatedBy: new Types.ObjectId(req.user.id),
+            updatedAt: new Date()
+          }
+        },
+        { new: true }
+      );
+  
+      if (!updatedPolicy) {
+        return res.status(404).json({
+          success: false,
+          message: "Failed to update policy"
+        });
+      }
+  
+      return res.status(200).json({
+        success: true,
+        message: "Policy updated successfully",
+        data: updatedPolicy
+      });
+  
+    } catch (error) {
+      console.error('Error updating policy:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating policy",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async createPolicy(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Admin ID is missing"
+        });
+      }
+  
+      const { title, content, dated } = req.body;
+  
+      // Validate required fields
+      if (!title || !content) {
+        return res.status(400).json({
+          success: false,
+          message: "Title and content are required"
+        });
+      }
+  
+      // Check if a policy already exists
+      const existingPolicy = await Policy.findOne();
+      if (existingPolicy) {
+        // Update existing policy
+        const updatedPolicy = await Policy.findByIdAndUpdate(
+          existingPolicy._id,
+          {
+            $set: {
+              title,
+              content,
+              dated: dated || new Date(),
+              updatedBy: new Types.ObjectId(req.user.id),
+              updatedAt: new Date()
+            }
+          },
+          { new: true }
+        );
+  
+        return res.status(200).json({
+          success: true,
+          message: "Policy updated successfully",
+          data: updatedPolicy
+        });
+      }
+  
+      // Create new policy if none exists
+      const policy = new Policy({
+        title,
+        content,
+        dated: dated || new Date(),
+        createdBy: new Types.ObjectId(req.user.id),
+        isActive: true
+      });
+  
+      const savedPolicy = await policy.save();
+  
+      return res.status(201).json({
+        success: true,
+        message: "Policy created successfully",
+        data: savedPolicy
+      });
+  
+    } catch (error) {
+      console.error('Error creating/updating policy:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error creating/updating policy",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }
