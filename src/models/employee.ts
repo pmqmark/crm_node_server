@@ -88,6 +88,12 @@ const employeeSchema = new Schema<IEmployee>({
     enum: ['Full-Time', 'Contract', 'Probation', 'WFH'],
     default: 'Probation',
     required: true
+},
+leaveRef: {
+  type: Schema.Types.ObjectId,
+  ref: 'LeaveForEmp',
+  default: new mongoose.Types.ObjectId('681a69cae6138be704aa52d9'),
+  required: true
 }
 });
 
