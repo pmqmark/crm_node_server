@@ -3009,18 +3009,11 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
     }
   }
 
-  /**
-   * Retrieves the common company leave policy for all employees.
-   * This includes the general policy text, default leave entitlements, company holidays for the year,
-   * the next upcoming holiday, AND any employee-specific leave policies.
-   * Aligned to accept standard express.Request and handle AuthRequest internally.
-   */
-  async getCommonLeavePolicy(req: Request, res: Response): Promise<Response> { // Accepts standard Request
+
+  async getCommonLeavePolicy(req: Request, res: Response): Promise<Response> { 
     try {
-        // Cast req to AuthRequest to safely access the user property
         const authReq = req as AuthRequest;
 
-        // Ensure user is authenticated to view company information
         if (!authReq.user || !authReq.user.id) {
             return res.status(401).json({
                 success: false,
