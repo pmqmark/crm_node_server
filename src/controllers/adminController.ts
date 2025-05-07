@@ -24,6 +24,7 @@ import Skill from '../models/skill';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import dayjs from 'dayjs'; 
 import Policy from "../models/policy";
+import LeaveForEmp from "../models/leaveforemp";
 
 
 interface CreateScheduleDto {
@@ -1180,6 +1181,129 @@ export class AdminController {
     }
   }
 
+  async getLeaveForEmp(req: Request, res: Response) {
+    
+      const leaves = await LeaveForEmp.find()
+      console.log(leaves)
+
+    
+   
+  }
+
+
+  async createLeaveForEmp(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Admin ID is missing"
+        });
+      }
+  
+      const { name, description, days, year, isDefault, isHoliday, isSpecific, holidayDate, employee_id } = req.body;
+  
+      // Validate required fields
+      if (!name || !days || !year) {
+        return res.status(400).json({
+          success: false,
+          message: "Name, days, and year are required"
+        });
+      }
+  
+      // Validate employee_id if isSpecific is true
+      if (isSpecific && !employee_id) {
+        return res.status(400).json({
+          success: false,
+          message: "Employee ID is required for specific leave configuration"
+        });
+      }
+  
+      // Check if year is valid
+      const currentYear = new Date().getFullYear();
+      if (year < currentYear) {
+        return res.status(400).json({
+          success: false,
+          message: "Year must be current or future year"
+        });
+      }
+  
+      // If this is a default leave type, check if one already exists
+      if (isDefault) {
+        const existingDefault = await LeaveForEmp.findOne({ isDefault: true });
+        if (existingDefault) {
+          return res.status(400).json({
+            success: false,
+            message: "A default leave configuration already exists"
+          });
+        }
+      }
+  
+      // Validate holiday date if isHoliday is true
+      if (isHoliday && !holidayDate) {
+        return res.status(400).json({
+          success: false,
+          message: "Holiday date is required when isHoliday is true"
+        });
+      }
+  
+      // Create new leave configuration
+      const leaveConfig = new LeaveForEmp({
+        name,
+        description,
+        days,
+        year,
+        isDefault: isDefault || false,
+        isHoliday: isHoliday || false,
+        isSpecific: isSpecific || false,
+        ...(isHoliday && { holidayDate: new Date(holidayDate) })
+      });
+  
+      const savedLeave = await leaveConfig.save();
+  
+      // If isSpecific is true, update the employee's leaveRef
+      if (isSpecific && employee_id) {
+        const employee = await Employee.findById(employee_id);
+        
+        if (!employee) {
+          // Delete the created leave config since employee wasn't found
+          await LeaveForEmp.findByIdAndDelete(savedLeave._id);
+          return res.status(404).json({
+            success: false,
+            message: "Employee not found"
+          });
+        }
+  
+        // Update employee's leaveRef
+        await Employee.findByIdAndUpdate(
+          employee_id,
+          { 
+            $set: { 
+              leaveRef: savedLeave._id 
+            }
+          },
+          { new: true }
+        );
+      }
+  
+      return res.status(201).json({
+        success: true,
+        message: "Leave configuration created successfully",
+        data: {
+          ...savedLeave.toObject(),
+          ...(isSpecific && { assigned_to: employee_id })
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error creating leave configuration:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error creating leave configuration",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
 
 
   async updatePolicy(req: AuthRequest, res: Response): Promise<Response> {
@@ -1435,6 +1559,79 @@ export class AdminController {
     }
   }
 
+
+  async getLeavepolicyForEmp(req: Request, res: Response): Promise<Response> {
+    try {
+      const { isSpecific, isHoliday, isDefault } = req.query;
+      const query: any = {};
+  
+      // Build query based on filters
+      if (typeof isSpecific === 'string') {
+        query.isSpecific = isSpecific.toLowerCase() === 'true';
+      }
+      if (typeof isHoliday === 'string') {
+        query.isHoliday = isHoliday.toLowerCase() === 'true';
+      }
+      if (typeof isDefault === 'string') {
+        query.isDefault = isDefault.toLowerCase() === 'true';
+      }
+  
+      // Get leaves based on filters
+      const leaves = await LeaveForEmp.find(query).sort({ updatedAt: -1 });
+  
+      // Group and format the response
+      const formattedResponse = {
+        defaultLeave: [] as any[],
+        holidays: [] as any[],
+        specificLeaves: [] as any[]
+      };
+  
+      leaves.forEach(leave => {
+        const leaveData = {
+          _id: leave._id,
+          name: leave.name,
+          description: leave.description,
+          days: leave.days,
+          year: leave.year,
+          holidayDate: leave.holidayDate,
+          createdAt: leave.createdAt,
+          updatedAt: leave.updatedAt
+        };
+  
+        if (leave.isDefault) {
+          formattedResponse.defaultLeave.push(leaveData);
+        } else if (leave.isHoliday) {
+          formattedResponse.holidays.push(leaveData);
+        } else if (leave.isSpecific) {
+          formattedResponse.specificLeaves.push(leaveData);
+        }
+      });
+  
+      // Calculate summary
+      const summary = {
+        total: leaves.length,
+        defaultCount: formattedResponse.defaultLeave.length,
+        holidaysCount: formattedResponse.holidays.length,
+        specificLeavesCount: formattedResponse.specificLeaves.length
+      };
+  
+      return res.status(200).json({
+        success: true,
+        message: "Leave configurations retrieved successfully",
+        summary,
+        data: formattedResponse
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving leave configurations:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving leave configurations",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
   async getProjectTasks(req: Request, res: Response): Promise<Response> {
     try {
       const { project_id } = req.body;
@@ -1488,6 +1685,217 @@ export class AdminController {
       return res.status(500).json({
         success: false,
         message: "Error retrieving project tasks",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async updateDefaultLeave(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Admin ID is missing"
+        });
+      }
+  
+      const { name, description, days, year } = req.body;
+  
+      // Validate required fields
+      if (!name || !days || !year) {
+        return res.status(400).json({
+          success: false,
+          message: "Name, days, and year are required"
+        });
+      }
+  
+      // Check if year is valid
+      const currentYear = new Date().getFullYear();
+      if (year < currentYear) {
+        return res.status(400).json({
+          success: false,
+          message: "Year must be current or future year"
+        });
+      }
+  
+      // Find the default leave document
+      const defaultLeave = await LeaveForEmp.findOne({ isDefault: true });
+      if (!defaultLeave) {
+        return res.status(404).json({
+          success: false,
+          message: "No default leave configuration found"
+        });
+      }
+  
+      // Update the default leave document
+      const updatedLeave = await LeaveForEmp.findByIdAndUpdate(
+        defaultLeave._id,
+        {
+          $set: {
+            name,
+            description,
+            days,
+            year,
+            updatedAt: new Date()
+          }
+        },
+        { new: true }
+      );
+  
+      return res.status(200).json({
+        success: true,
+        message: "Default leave configuration updated successfully",
+        data: updatedLeave
+      });
+  
+    } catch (error) {
+      console.error('Error updating default leave:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating default leave configuration",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+  async getLeaveById(req: Request, res: Response): Promise<Response> {
+    try {
+      const { id } = req.params;
+  
+      // Validate leave ID
+      if (!Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid leave ID format"
+        });
+      }
+  
+      // Find leave by ID
+      const leave = await LeaveForEmp.findById(id);
+  
+      if (!leave) {
+        return res.status(404).json({
+          success: false,
+          message: "Leave configuration not found"
+        });
+      }
+  
+      // Format response
+      const formattedLeave = {
+        _id: leave._id,
+        name: leave.name,
+        description: leave.description,
+        days: leave.days,
+        year: leave.year,
+        isDefault: leave.isDefault,
+        isHoliday: leave.isHoliday,
+        isSpecific: leave.isSpecific,
+        holidayDate: leave.holidayDate,
+        createdAt: leave.createdAt,
+        updatedAt: leave.updatedAt
+      };
+  
+      return res.status(200).json({
+        success: true,
+        message: "Leave configuration retrieved successfully",
+        data: formattedLeave
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving leave configuration:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving leave configuration",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+
+  async updateLeaveById(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Admin ID is missing"
+        });
+      }
+  
+      const { id } = req.params;
+      const { name, description, days, year, isHoliday, holidayDate } = req.body;
+  
+      // Validate leave ID
+      if (!Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid leave ID format"
+        });
+      }
+  
+      // Find leave
+      const leave = await LeaveForEmp.findById(id);
+      if (!leave) {
+        return res.status(404).json({
+          success: false,
+          message: "Leave configuration not found"
+        });
+      }
+  
+      // Don't allow updating isDefault status
+      if (leave.isDefault) {
+        return res.status(400).json({
+          success: false,
+          message: "Default leave configuration can only be updated using updateDefaultLeave"
+        });
+      }
+  
+      // Check if year is valid
+      if (year) {
+        const currentYear = new Date().getFullYear();
+        if (year < currentYear) {
+          return res.status(400).json({
+            success: false,
+            message: "Year must be current or future year"
+          });
+        }
+      }
+  
+      // Validate holiday date if isHoliday is true
+      if (isHoliday && !holidayDate) {
+        return res.status(400).json({
+          success: false,
+          message: "Holiday date is required when isHoliday is true"
+        });
+      }
+  
+      // Update leave configuration
+      const updateData: any = {};
+      if (name) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (days) updateData.days = days;
+      if (year) updateData.year = year;
+      if (isHoliday !== undefined) updateData.isHoliday = isHoliday;
+      if (holidayDate) updateData.holidayDate = new Date(holidayDate);
+  
+      const updatedLeave = await LeaveForEmp.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true }
+      );
+  
+      return res.status(200).json({
+        success: true,
+        message: "Leave configuration updated successfully",
+        data: updatedLeave
+      });
+  
+    } catch (error) {
+      console.error('Error updating leave configuration:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating leave configuration",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }
