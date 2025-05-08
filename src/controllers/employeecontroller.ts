@@ -3360,128 +3360,203 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
 
   /**
    * Get team members (same department OR same projects) whose birthday is today.
+   * If no birthdays today, returns the next upcoming birthdays from team members.
    * Displays their role and whether the current user has wished them.
    */
   async getTodaysTeamBirthdays(req: AuthRequest, res: Response): Promise<Response> {
     try {
-        if (!req.user || !req.user.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized: User ID is missing" });
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ success: false, message: "Unauthorized: User ID is missing" });
+      }
+      const currentEmployeeId = new Types.ObjectId(req.user.id);
+  
+      const currentUser = await Employee.findById(currentEmployeeId).select('department_id');
+      if (!currentUser) {
+        return res.status(404).json({ success: false, message: "Current user not found." });
+      }
+  
+      // 1. Get today's date info for comparing birthdays
+      const today = new Date();
+      const currentMonth = today.getUTCMonth() + 1; // Use UTC method (1-12)
+      const currentDay = today.getUTCDate();        // Use UTC method
+      
+      // Create date range for today (start/end of day in UTC) for accurate wish comparison
+      const startOfToday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+      const endOfToday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 23, 59, 59, 999));
+  
+      // 2. Get project IDs current user is part of
+      const currentUserProjects = await Project.find({
+        $or: [
+          { teamMembers: currentEmployeeId },
+          { teamLeaders: currentEmployeeId },
+          { managers: currentEmployeeId }
+        ]
+      }).select('_id');
+      const currentUserProjectIds = Array.from(currentUserProjects.map(p => p._id.toString()));
+  
+      // Store the current user's department ID as string for easy comparison
+      const currentUserDepartmentId = currentUser.department_id ? currentUser.department_id.toString() : null;
+  
+      // 3. Find all other employees with DOB, populate their role
+      const potentialColleagues = await Employee.find({
+        _id: { $ne: currentEmployeeId }, // Exclude the current user
+        dob: { $exists: true, $ne: null } // Ensure dob exists
+      }).populate<{ role_id: { _id: Types.ObjectId, name: string } | null }>('role_id', 'name')
+        .select('firstName lastName dob department_id role_id');
+  
+      // 4. Process all colleagues to find birthdays today and track team members for next birthday logic
+      const birthdayTeamMembersMap = new Map<string, TeamBirthdayEmployeeViewModel>();
+      const allTeamMembers: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        roleName: string;
+        dob: Date;
+        nextBirthdayDate: Date;
+        daysUntil: number;
+      }[] = [];
+  
+      // First, process each colleague to determine if they're a team member
+      for (const colleague of potentialColleagues) {
+        if (!colleague.dob) continue;
+  
+        // Check if the colleague is a team member (same department or project)
+        let isTeamMember = false;
+        
+        // Check 1: Same department - convert both to strings for reliable comparison
+        if (currentUserDepartmentId && colleague.department_id) {
+          const colleagueDeptId = colleague.department_id.toString();
+          if (colleagueDeptId === currentUserDepartmentId) {
+            isTeamMember = true;
+          }
         }
-        const currentEmployeeId = new Types.ObjectId(req.user.id);
-
-        const currentUser = await Employee.findById(currentEmployeeId).select('department_id');
-        if (!currentUser) {
-            return res.status(404).json({ success: false, message: "Current user not found." });
-        }
-
-        const today = new Date();
-        const currentMonth = today.getMonth() + 1; // MongoDB $month is 1-12
-        const currentDay = today.getDate();     // MongoDB $dayOfMonth is 1-31
-        // Create a date object representing today at midnight for consistent wishDate comparison
-        const todayDateOnly = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-
-
-        // 1. Get project IDs current user is part of
-        // Assuming Project model has fields like teamMembers, teamLeaders, managers
-        const currentUserProjects = await Project.find({
+  
+        // Check 2: Shared project (if not already confirmed as team member)
+        if (!isTeamMember && currentUserProjectIds.length > 0) {
+          const colleagueId = colleague._id;
+          
+          const colleagueIsInSharedProject = await Project.exists({
+            _id: { $in: currentUserProjectIds.map(id => new Types.ObjectId(id)) },
             $or: [
-                { teamMembers: currentEmployeeId },
-                { teamLeaders: currentEmployeeId },
-                { managers: currentEmployeeId } // Adjust based on your Project schema
+              { teamMembers: colleagueId },
+              { teamLeaders: colleagueId },
+              { managers: colleagueId }
             ]
-        }).select('_id');
-        const currentUserProjectIds = new Set(currentUserProjects.map(p => p._id.toString()));
-
-        // 2. Find all other employees, populate their role
-        // Ensure Employee model has 'dob', 'department_id', 'role_id'
-        // Ensure Role model has 'name'
-        const potentialColleagues = await Employee.find({
-            _id: { $ne: currentEmployeeId }, // Exclude the current user
-            dob: { $exists: true, $ne: null } // Ensure dob exists
-        }).populate<{ role_id: { _id: Types.ObjectId, name: string } | null }>('role_id', 'name')
-          .select('firstName lastName dob department_id role_id');
-
-        const birthdayTeamMembersMap = new Map<string, TeamBirthdayEmployeeViewModel>();
-
-        for (const colleague of potentialColleagues) {
-            if (!colleague.dob) continue; // Should be caught by query, but good practice
-
-            const dobMonth = colleague.dob.getMonth() + 1;
-            const dobDay = colleague.dob.getDate();
-
-            if (dobMonth === currentMonth && dobDay === currentDay) {
-                // It's their birthday, now check if they are a "team member"
-                let isTeamMember = false;
-
-                // Check 1: Same department (if current user has a department)
-                if (currentUser.department_id && colleague.department_id &&
-                    colleague.department_id.toString() === currentUser.department_id.toString()) {
-                    isTeamMember = true;
-                }
-
-                // Check 2: Shared project (if not already confirmed by department)
-                if (!isTeamMember && currentUserProjectIds.size > 0) {
-                    // Check if this colleague is part of any of the current user's projects
-                    const colleagueIsInSharedProject = await Project.exists({
-                        _id: { $in: Array.from(currentUserProjectIds).map(id => new Types.ObjectId(id)) }, // Projects current user is in
-                        $or: [ // Check if colleague is in any of those projects
-                            { teamMembers: colleague._id },
-                            { teamLeaders: colleague._id },
-                            { managers: colleague._id }
-                        ]
-                    });
-                    if (colleagueIsInSharedProject) {
-                        isTeamMember = true;
-                    }
-                }
-
-                if (isTeamMember) {
-                    const colleagueIdStr = colleague._id.toString();
-                    // Add to map only if not already present (handles duplicates if in same dept AND project)
-                    if (!birthdayTeamMembersMap.has(colleagueIdStr)) {
-                        const wishSent = await BirthdayWish.findOne({
-                            wisherEmployeeId: currentEmployeeId,
-                            birthdayEmployeeId: colleague._id,
-                            wishDate: todayDateOnly // Compare against date only
-                        });
-
-                        const roleName = colleague.role_id ? colleague.role_id.name : 'N/A';
-
-                        birthdayTeamMembersMap.set(colleagueIdStr, {
-                            employeeId: colleagueIdStr,
-                            firstName: colleague.firstName,
-                            lastName: colleague.lastName,
-                            roleName: roleName,
-                            hasWishedToday: !!wishSent
-                        });
-                    }
-                }
-            }
+          });
+          
+          if (colleagueIsInSharedProject) {
+            isTeamMember = true;
+          }
         }
-
-        const results = Array.from(birthdayTeamMembersMap.values());
-
-        if (results.length === 0) {
-            return res.status(200).json({
-                success: true,
-                message: "No team members have a birthday today.",
-                data: []
-            });
+  
+        // If not a team member, skip to next colleague
+        if (!isTeamMember) continue;
+  
+        // Convert DOB to UTC date components for consistent comparison
+        const dobMonth = colleague.dob.getUTCMonth() + 1;
+        const dobDay = colleague.dob.getUTCDate();
+        const colleagueIdStr = colleague._id.toString();
+        const roleName = colleague.role_id ? colleague.role_id.name : 'N/A';
+  
+        // Check if it's their birthday today (using UTC date components)
+        if (dobMonth === currentMonth && dobDay === currentDay) {
+          // Check if a birthday wish has been sent (using proper date range comparison)
+          const wishSent = await BirthdayWish.findOne({
+            wisherEmployeeId: currentEmployeeId,
+            birthdayEmployeeId: colleague._id,
+            wishDate: { $gte: startOfToday, $lte: endOfToday }
+          });
+  
+          // Add to today's birthdays map
+          birthdayTeamMembersMap.set(colleagueIdStr, {
+            employeeId: colleagueIdStr,
+            firstName: colleague.firstName,
+            lastName: colleague.lastName,
+            roleName: roleName,
+            hasWishedToday: !!wishSent
+          });
+        } else {
+          // Calculate the next birthday date
+          const thisYear = today.getUTCFullYear();
+          const nextBirthdayThisYear = new Date(Date.UTC(thisYear, dobMonth - 1, dobDay));
+          
+          // If birthday this year has passed, calculate for next year
+          const nextBirthdayDate = (nextBirthdayThisYear < today) 
+            ? new Date(Date.UTC(thisYear + 1, dobMonth - 1, dobDay))
+            : nextBirthdayThisYear;
+          
+          // Calculate days until next birthday
+          const daysUntil = Math.ceil((nextBirthdayDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          
+          allTeamMembers.push({
+            id: colleagueIdStr,
+            firstName: colleague.firstName,
+            lastName: colleague.lastName,
+            roleName: roleName,
+            dob: colleague.dob,
+            nextBirthdayDate: nextBirthdayDate,
+            daysUntil: daysUntil
+          });
         }
-
+      }
+  
+      // 5. Process results based on whether we found birthdays today
+      const todaysBirthdays = Array.from(birthdayTeamMembersMap.values());
+  
+      // If we found birthdays today, return them without next birthday calculation
+      if (todaysBirthdays.length > 0) {
         return res.status(200).json({
+          success: true,
+          message: "Team birthdays found today!",
+          hasTodaysBirthdays: true,
+          data: todaysBirthdays
+        });
+      } 
+      // No birthdays today - find all upcoming birthdays with same closest date
+      else {
+        // Sort team members by days until birthday to find the minimum days
+        allTeamMembers.sort((a, b) => a.daysUntil - b.daysUntil);
+        
+        // If we have any team members with future birthdays
+        if (allTeamMembers.length > 0) {
+          // Get the minimum days until next birthday
+          const minDaysUntil = allTeamMembers[0].daysUntil;
+          
+          // Find all team members who share the same next closest birthday
+          const nextBirthdays = allTeamMembers.filter(member => member.daysUntil === minDaysUntil);
+          
+          // Convert to array of objects for response
+          const nextBirthdayData = nextBirthdays.map(member => ({
+            employeeId: member.id,
+            firstName: member.firstName,
+            lastName: member.lastName,
+            roleName: member.roleName,
+            birthdayDate: member.nextBirthdayDate,
+            daysUntil: member.daysUntil
+          }));
+          
+          return res.status(200).json({
             success: true,
-            message: "Team birthdays retrieved successfully.",
-            data: results
-        });
-
+            message: "No team birthdays today. Returning next upcoming birthdays.",
+            hasTodaysBirthdays: false,
+            nextBirthdays: nextBirthdayData
+          });
+        } else {
+          return res.status(200).json({
+            success: true,
+            message: "No team birthdays found for today or upcoming.",
+            hasTodaysBirthdays: false,
+            data: []
+          });
+        }
+      }
     } catch (error) {
-        console.error('Error retrieving team birthdays:', error);
-        return res.status(500).json({
-            success: false,
-            message: "Error retrieving team birthdays",
-            error: error instanceof Error ? error.message : "Unknown error"
-        });
+      console.error('Error retrieving team birthdays:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving team birthdays",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   }
 
