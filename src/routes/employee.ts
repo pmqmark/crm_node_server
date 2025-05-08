@@ -142,6 +142,10 @@ router.post('/send-birthday-wish', authMiddleware, (req, res) => {
     employeeController.sendBirthdayWish(req, res);
 });
 
+router.get('/common-leave-policy', authMiddleware, (req, res) => {
+  employeeController.getCommonLeavePolicy(req, res);
+});
+
 router.get('/get-attendence', (req, res, next) => {
 
   employeeController.getAttendanceLogs(req, res)
