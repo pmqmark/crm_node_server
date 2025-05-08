@@ -106,6 +106,10 @@ router.delete("/todos", authMiddleware, (req, res) => {
   employeeController.deleteTodo(req, res);
 });
 
+router.put("/todos/:todoId", authMiddleware, (req, res) => {
+  employeeController.editTodo(req, res);
+});
+
 router.get("/attendance-analytics", authMiddleware, (req, res) => {
   employeeController.getAttendanceAnalytics(req, res);
 });
