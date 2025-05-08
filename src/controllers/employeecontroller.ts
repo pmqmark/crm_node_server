@@ -1985,6 +1985,10 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
   }
 
 
+  /**
+   * Get all todos for the logged-in employee
+   * Optionally filter by view (my day, important)
+   */
   async getMyTodos(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
@@ -1995,16 +1999,38 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
       }
   
       const employeeId = req.user.id;
+      const { view } = req.query;
       
-      // Find todos
-      const todos = await Todo.find({ 
-        employee_id: new Types.ObjectId(employeeId) 
-      })
-      .sort({ created_at: -1 });
+      // Build query based on the employee ID
+      const query: any = {
+        employee_id: new Types.ObjectId(employeeId)
+      };
+      
+      // Add filters based on view parameter
+      if (view === 'myday') {
+        query.isMyDay = true;
+      } else if (view === 'important') {
+        query.isImportant = true;
+      }
+      
+      // Find todos matching the query
+      const todos = await Todo.find(query)
+        .sort({ created_at: -1 });
+      
+      // Calculate summary statistics
+      const summary = {
+        total: todos.length,
+        completed: todos.filter(todo => todo.completed).length,
+        remaining: todos.filter(todo => !todo.completed).length,
+        withDueDate: todos.filter(todo => todo.dueDate).length,
+        myDay: todos.filter(todo => todo.isMyDay).length,
+        important: todos.filter(todo => todo.isImportant).length
+      };
       
       return res.status(200).json({
         success: true,
         message: "Todos retrieved successfully",
+        summary,
         data: todos
       });
       
@@ -2019,7 +2045,7 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
   }
   
   /**
-   * Create a simple todo task
+   * Create a simple todo task (without subtasks)
    */
   async createTodo(req: AuthRequest, res: Response): Promise<Response> {
     try {
@@ -2034,19 +2060,23 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
       const { title } = req.body;
       
       // Validate required field
-      if (!title) {
+      if (!title || !title.trim()) {
         return res.status(400).json({
           success: false,
           message: "Todo title is required"
         });
       }
       
-      // Create todo item
+      // Create basic todo item (without subtasks)
       const todo = new Todo({
         employee_id: employeeId,
         title,
         completed: false,
-        created_at: new Date()
+        isImportant: false,
+        isMyDay: false,
+        subtasks: [],
+        created_at: new Date(),
+        updated_at: new Date()
       });
       
       const savedTodo = await todo.save();
@@ -2068,7 +2098,119 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
   }
   
   /**
+   * Edit a todo - add subtasks, set due date, reminder, important flag, my day flag
+   */
+  async editTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+  
+      const employeeId = req.user.id;
+      const { todoId } = req.params;
+      const { 
+        title, 
+        completed, 
+        isImportant, 
+        isMyDay, 
+        dueDate,
+        reminderDate,
+        subtasks,
+        addSubtasks,
+        removeSubtaskIds
+      } = req.body;
+  
+      // Validate todoId
+      if (!todoId || !Types.ObjectId.isValid(todoId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid todo ID is required"
+        });
+      }
+  
+      // Find the todo
+      const todo = await Todo.findOne({
+        _id: new Types.ObjectId(todoId),
+        employee_id: new Types.ObjectId(employeeId)
+      });
+  
+      if (!todo) {
+        return res.status(404).json({
+          success: false,
+          message: "Todo not found"
+        });
+      }
+  
+      // Update fields if provided
+      if (title !== undefined) todo.title = title;
+      if (completed !== undefined) todo.completed = completed;
+      if (isImportant !== undefined) todo.isImportant = isImportant;
+      if (isMyDay !== undefined) todo.isMyDay = isMyDay;
+      
+      // Handle date fields
+      if (dueDate !== undefined) {
+        todo.dueDate = dueDate ? new Date(dueDate) : null;
+      }
+      
+      if (reminderDate !== undefined) {
+        todo.reminderDate = reminderDate ? new Date(reminderDate) : null;
+      }
+      
+      // Handle complete replacement of subtasks array
+      if (subtasks && Array.isArray(subtasks)) {
+        todo.subtasks = subtasks.map(subtask => ({
+          title: subtask.title,
+          completed: subtask.completed || false
+        }));
+      }
+      
+      // Handle adding individual subtasks (more flexible approach)
+      if (addSubtasks && Array.isArray(addSubtasks)) {
+        const newSubtasks = addSubtasks.map(subtask => ({
+          title: subtask.title,
+          completed: subtask.completed || false
+        }));
+        
+        todo.subtasks = [...todo.subtasks, ...newSubtasks];
+      }
+      
+      // Handle removing specific subtasks
+      if (removeSubtaskIds && Array.isArray(removeSubtaskIds) && removeSubtaskIds.length > 0) {
+        todo.subtasks = todo.subtasks.filter(subtask => 
+          !removeSubtaskIds.includes(subtask._id?.toString() || '')
+        );
+      }
+      
+      // Update the modified timestamp
+      todo.updated_at = new Date();
+      
+      // Save the updated todo
+      await todo.save();
+      
+      return res.status(200).json({
+        success: true,
+        message: "Todo updated successfully",
+        data: todo
+      });
+      
+    } catch (error) {
+      console.error('Error updating todo:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating todo",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
+
+  /**
    * Toggle todo completion status (complete/incomplete)
+   * When marking a todo as complete, all subtasks are marked as completed
+   * When marking a todo as incomplete, all subtasks are marked as incomplete
    */
   async toggleTodo(req: AuthRequest, res: Response): Promise<Response> {
     try {
@@ -2105,11 +2247,25 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
       
       // Toggle completed status
       todo.completed = !todo.completed;
+      
+      // If the todo has subtasks, update all subtask statuses to match the parent todo's status
+      if (todo.subtasks && todo.subtasks.length > 0) {
+        todo.subtasks = todo.subtasks.map(subtask => ({
+          ...subtask,
+          completed: todo.completed
+        }));
+      }
+      
+      // Update the modified timestamp
+      todo.updated_at = new Date();
+      
       await todo.save();
       
       return res.status(200).json({
         success: true,
-        message: `Todo marked as ${todo.completed ? 'completed' : 'incomplete'}`,
+        message: `Todo marked as ${todo.completed ? 'completed' : 'incomplete'}${todo.subtasks.length > 0 ? 
+          todo.completed ? ' (all subtasks also completed)' : ' (all subtasks also marked incomplete)' 
+          : ''}`,
         data: todo
       });
       
