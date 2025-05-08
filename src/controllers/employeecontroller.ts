@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose, { Types } from 'mongoose';
+import dayjs from 'dayjs'; // For easier date handling
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter'; // << IMPORT THE PLUGIN
 import Employee from "../models/employee";
 import Department from "../models/department";
 import Role from '../models/role';
@@ -15,6 +17,9 @@ import Ticket from '../models/ticket';
 import Admin from "../models/admin";
 import { Client } from "../models/client";
 import BirthdayWish from "../models/birthdayWish";
+import LeaveForEmp, { ILeaveForEmp } from '../models/leaveforemp';
+import Policy from '../models/policy';
+dayjs.extend(isSameOrAfter); // << EXTEND DAYJS WITH THE PLUGIN
 
 export interface AuthRequest extends Request {
   user?: User;
@@ -23,6 +28,16 @@ export interface AuthRequest extends Request {
 interface IPopulatedProject {
   _id: Types.ObjectId;
   projectName: string;
+}
+
+interface AttendanceStats {
+  present: number;
+  absent: number;
+  halfDay: number;
+  presentPercentage: number;
+  absentPercentage: number;
+  halfDayPercentage: number;
+  totalEmployees: number;
 }
 
 interface ITaskWithProject extends Document {
@@ -63,6 +78,8 @@ interface TeamBirthdayEmployeeViewModel {
     roleName: string; 
     hasWishedToday: boolean; 
 }
+
+
 
 export class EmployeeController {
 
@@ -700,6 +717,340 @@ async getAssignedProjects(req: AuthRequest, res: Response): Promise<Response> {
   }
 }
 
+
+  async getAttendanceLogs(req: Request, res: Response): Promise<Response> {
+    try {
+      const {
+        employee_id,
+        startDate,
+        endDate,
+        status
+      } = req.query;
+
+      const query: any = {};
+
+      // Filter by employee_id if provided
+      if (employee_id) {
+        query.employee_id = employee_id;
+      }
+
+      // Filter by date range if provided
+      if (startDate || endDate) {
+        query.date = {};
+        if (startDate) {
+          query.date.$gte = new Date(startDate as string);
+        }
+        if (endDate) {
+          query.date.$lte = new Date(endDate as string);
+        }
+      }
+
+      // Filter by status if provided
+      if (status) {
+        query.status = status;
+      }
+
+      const attendanceLogs = await AttendanceLog.find(query)
+        .sort({ date: -1, punchIn: -1 });
+
+      // Get employee details separately if needed
+      const employeeIds = [...new Set(attendanceLogs.map(log => log.employee_id))];
+      const employees = await Employee.find({ employee_id: { $in: employeeIds } })
+        .select('employee_id firstName lastName');
+
+      // Create employee lookup map
+      const employeeMap = new Map(
+        employees.map(emp => [emp.employee_id, emp])
+      );
+
+      // Combine attendance logs with employee details
+      const enrichedLogs = attendanceLogs.map(log => ({
+        ...log.toObject(),
+        employeeDetails: employeeMap.get(log.employee_id.toString()) || null
+      }));
+
+      // Calculate summary statistics
+      const summary = {
+        totalRecords: enrichedLogs.length,
+        present: enrichedLogs.filter(log => log.status === 'Present').length,
+        absent: enrichedLogs.filter(log => log.status === 'Absent').length,
+        halfDay: enrichedLogs.filter(log => log.status === 'Half-Day').length,
+        averageHours: enrichedLogs.reduce((acc, log) => acc + (log.totalHours || 0), 0) / enrichedLogs.length || 0
+      };
+
+      return res.status(200).json({
+        message: "Attendance logs retrieved successfully",
+        summary,
+        data: enrichedLogs
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error retrieving attendance logs",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+
+
+   async getDailyAttendance(req: Request, res: Response): Promise<Response> {
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+  
+        const dailyStats = await this.getAttendanceStats(today, new Date());
+  
+        return res.status(200).json({
+          message: "Daily attendance retrieved successfully",
+          date: today.toISOString().split('T')[0],
+          data: dailyStats
+        });
+      } catch (error) {
+        return res.status(500).json({
+          message: "Error retrieving daily attendance",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+
+
+    async getWeeklyAttendance1(req: Request, res: Response): Promise<Response> {
+        try {
+          const today = new Date();
+          const startOfWeek = new Date(today);
+          startOfWeek.setDate(today.getDate() - today.getDay());
+          startOfWeek.setHours(0, 0, 0, 0);
+    
+          const weeklyStats = await this.getAttendanceStats(startOfWeek, new Date());
+    
+          return res.status(200).json({
+            message: "Weekly attendance retrieved successfully",
+            startDate: startOfWeek.toISOString().split('T')[0],
+            endDate: today.toISOString().split('T')[0],
+            data: weeklyStats
+          });
+        } catch (error) {
+          return res.status(500).json({
+            message: "Error retrieving weekly attendance",
+            error: error instanceof Error ? error.message : "Unknown error"
+          });
+        }
+      }
+
+
+      async getMonthlyAttendance(req: Request, res: Response): Promise<Response> {
+          try {
+            const today = new Date();
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      
+            const monthlyStats = await this.getAttendanceStats(startOfMonth, new Date());
+      
+            return res.status(200).json({
+              message: "Monthly attendance retrieved successfully",
+              startDate: startOfMonth.toISOString().split('T')[0],
+              endDate: today.toISOString().split('T')[0],
+              data: monthlyStats
+            });
+          } catch (error) {
+            return res.status(500).json({
+              message: "Error retrieving monthly attendance",
+              error: error instanceof Error ? error.message : "Unknown error"
+            });
+          }
+        }
+
+
+         async getLeavepolicyForEmp(req: Request, res: Response): Promise<Response> {
+            try {
+              const { isSpecific, isHoliday, isDefault } = req.query;
+              const query: any = {};
+          
+              // Build query based on filters
+              if (typeof isSpecific === 'string') {
+                query.isSpecific = isSpecific.toLowerCase() === 'true';
+              }
+              if (typeof isHoliday === 'string') {
+                query.isHoliday = isHoliday.toLowerCase() === 'true';
+              }
+              if (typeof isDefault === 'string') {
+                query.isDefault = isDefault.toLowerCase() === 'true';
+              }
+          
+              // Get leaves based on filters
+              const leaves = await LeaveForEmp.find(query).sort({ updatedAt: -1 });
+          
+              // Group and format the response
+              const formattedResponse = {
+                defaultLeave: [] as any[],
+                holidays: [] as any[],
+                specificLeaves: [] as any[]
+              };
+          
+              leaves.forEach(leave => {
+                const leaveData = {
+                  _id: leave._id,
+                  name: leave.name,
+                  description: leave.description,
+                  days: leave.days,
+                  year: leave.year,
+                  holidayDate: leave.holidayDate,
+                  createdAt: leave.createdAt,
+                  updatedAt: leave.updatedAt
+                };
+          
+                if (leave.isDefault) {
+                  formattedResponse.defaultLeave.push(leaveData);
+                } else if (leave.isHoliday) {
+                  formattedResponse.holidays.push(leaveData);
+                } else if (leave.isSpecific) {
+                  formattedResponse.specificLeaves.push(leaveData);
+                }
+              });
+          
+              // Calculate summary
+              const summary = {
+                total: leaves.length,
+                defaultCount: formattedResponse.defaultLeave.length,
+                holidaysCount: formattedResponse.holidays.length,
+                specificLeavesCount: formattedResponse.specificLeaves.length
+              };
+          
+              return res.status(200).json({
+                success: true,
+                message: "Leave configurations retrieved successfully",
+                summary,
+                data: formattedResponse
+              });
+          
+            } catch (error) {
+              console.error('Error retrieving leave configurations:', error);
+              return res.status(500).json({
+                success: false,
+                message: "Error retrieving leave configurations",
+                error: error instanceof Error ? error.message : "Unknown error"
+              });
+            }
+          }
+
+
+          async getLeaveById(req: Request, res: Response): Promise<Response> {
+            try {
+              const { id } = req.params;
+          
+              // Validate leave ID
+              if (!Types.ObjectId.isValid(id)) {
+                return res.status(400).json({
+                  success: false,
+                  message: "Invalid leave ID format"
+                });
+              }
+          
+              // Find leave by ID
+              const leave = await LeaveForEmp.findById(id);
+          
+              if (!leave) {
+                return res.status(404).json({
+                  success: false,
+                  message: "Leave configuration not found"
+                });
+              }
+          
+              // Format response
+              const formattedLeave = {
+                _id: leave._id,
+                name: leave.name,
+                description: leave.description,
+                days: leave.days,
+                year: leave.year,
+                isDefault: leave.isDefault,
+                isHoliday: leave.isHoliday,
+                isSpecific: leave.isSpecific,
+                holidayDate: leave.holidayDate,
+                createdAt: leave.createdAt,
+                updatedAt: leave.updatedAt
+              };
+          
+              return res.status(200).json({
+                success: true,
+                message: "Leave configuration retrieved successfully",
+                data: formattedLeave
+              });
+          
+            } catch (error) {
+              console.error('Error retrieving leave configuration:', error);
+              return res.status(500).json({
+                success: false,
+                message: "Error retrieving leave configuration",
+                error: error instanceof Error ? error.message : "Unknown error"
+              });
+            }
+          }
+
+
+        private async getAttendanceStats(startDate: Date, endDate: Date): Promise<AttendanceStats> {
+          try {
+            // Get total number of employees
+            const totalEmployees = await Employee.countDocuments();
+      
+            // Get attendance records for the period
+            const attendanceCounts = await AttendanceLog.aggregate([
+              {
+                $match: {
+                  date: {
+                    $gte: startDate,
+                    $lte: endDate
+                  }
+                }
+              },
+              {
+                $group: {
+                  _id: "$status",
+                  count: { $sum: 1 }
+                }
+              }
+            ]);
+      
+            const stats = {
+              present: 0,
+              absent: 0,
+              halfDay: 0,
+              presentPercentage: 0,
+              absentPercentage: 0,
+              halfDayPercentage: 0,
+              totalEmployees
+            };
+      
+      
+            attendanceCounts.forEach(item => {
+              switch (item._id) {
+                case 'Present':
+                  stats.present = item.count;
+                  break;
+                case 'Half-Day':
+                  stats.halfDay = item.count;
+                  break;
+              }
+            });
+      
+            // Calculate absent as total employees minus (present + half-day)
+            stats.absent = totalEmployees - (stats.present + stats.halfDay);
+      
+            // Ensure absent count doesn't go below 0
+            stats.absent = Math.max(0, stats.absent);
+      
+            // Calculate percentages
+            stats.presentPercentage = totalEmployees > 0 ? (stats.present / totalEmployees) * 100 : 0;
+            stats.halfDayPercentage = totalEmployees > 0 ? (stats.halfDay / totalEmployees) * 100 : 0;
+            stats.absentPercentage = totalEmployees > 0 ? (stats.absent / totalEmployees) * 100 : 0;
+      
+            return stats;
+      
+          } catch (error) {
+            console.error('Error calculating attendance stats:', error);
+            throw error;
+          }
+        }
+
 async assignTask(req: AuthRequest, res: Response): Promise<Response> {
   try {
     if (!req.user || !req.user.id) {
@@ -798,6 +1149,42 @@ async assignTask(req: AuthRequest, res: Response): Promise<Response> {
       });
   }
 }
+
+
+  async getPolicy(req: Request, res: Response): Promise<Response> {
+    try {
+      // Get the latest policy document
+      const policy = await Policy.findOne()
+        .sort({ updatedAt: -1 });
+  
+      if (!policy) {
+        return res.status(404).json({
+          success: false,
+          message: "No policy found"
+        });
+      }
+  
+      return res.status(200).json({
+        success: true,
+        message: "Policy retrieved successfully",
+        data: {
+          title: policy.title,
+          content: policy.content,
+          dated: policy.dated,
+          updatedAt: policy.updatedAt,
+          createdAt: policy.createdAt
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving policy:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving policy",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
 
 async checkOut(req: AuthRequest, res: Response): Promise<Response> {
   try {
@@ -2996,6 +3383,121 @@ async checkOut(req: AuthRequest, res: Response): Promise<Response> {
         return res.status(500).json({
             success: false,
             message: "Error sending birthday wish",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+  }
+
+
+  async getCommonLeavePolicy(req: Request, res: Response): Promise<Response> { 
+    try {
+        const authReq = req as AuthRequest;
+
+        if (!authReq.user || !authReq.user.id) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized: User ID is missing"
+            });
+        }
+
+        const currentYear = new Date().getFullYear();
+        const today = dayjs().startOf('day');
+
+        // 1. Fetch the general company policy (latest version)
+        const companyPolicyDocument = await Policy.findOne()
+            .sort({ updatedAt: -1 })
+            .select('title content dated updatedAt')
+            .lean();
+
+        // 2. Fetch the current default leave rules applicable to all employees
+        let defaultLeaveRules: ILeaveForEmp | null = await LeaveForEmp.findOne({ isDefault: true, year: currentYear })
+            .select('name description days year isDefault') // Added isDefault for clarity
+            .lean<ILeaveForEmp>();
+        
+        if (!defaultLeaveRules) {
+            defaultLeaveRules = await LeaveForEmp.findOne({ isDefault: true })
+                .sort({ year: -1 })
+                .select('name description days year isDefault') // Added isDefault for clarity
+                .lean<ILeaveForEmp>();
+        }
+
+        // 3. Fetch company holidays for the current year, sorted chronologically
+        const companyHolidays = await LeaveForEmp.find({ isHoliday: true, year: currentYear })
+            .select('name holidayDate description year isHoliday') // Added isHoliday for clarity
+            .sort({ holidayDate: 1 })
+            .lean<ILeaveForEmp[]>();
+
+        // 4. Fetch employee-specific leave policy
+        let employeeSpecificPolicy: ILeaveForEmp | null = null;
+        const employee = await Employee.findById(authReq.user.id).select('leaveRef');
+
+        if (employee && employee.leaveRef) {
+            const specificPolicyDoc = await LeaveForEmp.findById(employee.leaveRef)
+                .select('name description days year isSpecific') // Select relevant fields
+                .lean<ILeaveForEmp>();
+            
+            // Only consider it if it's explicitly marked as specific
+            if (specificPolicyDoc && specificPolicyDoc.isSpecific) {
+                employeeSpecificPolicy = specificPolicyDoc;
+            }
+        }
+
+        // 5. Determine the next upcoming holiday
+        let nextUpcomingHolidayData: { name: string; date: Date; description?: string; daysUntil: number } | null = null;
+        
+        const upcomingHolidaysFromToday = companyHolidays.filter(h => 
+            h.holidayDate && dayjs(h.holidayDate).isSameOrAfter(today)
+        );
+
+        if (upcomingHolidaysFromToday.length > 0) {
+            const nextHolidayDoc = upcomingHolidaysFromToday[0];
+            if (nextHolidayDoc.holidayDate) { 
+                const daysUntil = dayjs(nextHolidayDoc.holidayDate).diff(today, 'day');
+                nextUpcomingHolidayData = {
+                    name: nextHolidayDoc.name,
+                    date: nextHolidayDoc.holidayDate,
+                    description: nextHolidayDoc.description,
+                    daysUntil: daysUntil
+                };
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Common and specific leave policy details retrieved successfully.",
+            data: {
+                generalPolicy: companyPolicyDocument ? {
+                    title: companyPolicyDocument.title,
+                    content: companyPolicyDocument.content,
+                    effectiveDate: companyPolicyDocument.dated,
+                    lastUpdated: companyPolicyDocument.updatedAt
+                } : null,
+                defaultLeaveRules: defaultLeaveRules ? {
+                    name: defaultLeaveRules.name,
+                    description: defaultLeaveRules.description,
+                    daysAllowed: defaultLeaveRules.days,
+                    applicableYear: defaultLeaveRules.year
+                } : null,
+                employeeSpecificPolicy: employeeSpecificPolicy ? { // New field for specific policy
+                    name: employeeSpecificPolicy.name,
+                    description: employeeSpecificPolicy.description,
+                    daysAllowed: employeeSpecificPolicy.days,
+                    applicableYear: employeeSpecificPolicy.year
+                } : null,
+                nextUpcomingHoliday: nextUpcomingHolidayData,
+                companyHolidays: companyHolidays.map(h => ({
+                    name: h.name,
+                    date: h.holidayDate,
+                    description: h.description
+                }))
+            }
+        });
+
+    } catch (error) {
+        console.error('Error retrieving common and specific leave policy details:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error retrieving common and specific leave policy details",
             error: error instanceof Error ? error.message : "Unknown error"
         });
     }
