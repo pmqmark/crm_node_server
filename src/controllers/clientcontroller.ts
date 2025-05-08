@@ -1622,4 +1622,153 @@ export class ClientController {
       });
     }
   }
+
+  /**
+   * Get detailed project information for a specific project
+   * Only returns projects that belong to the authenticated client
+   */
+  async getProjectDetails(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing"
+        });
+      }
+
+      const clientId = req.user.id;
+      const { projectId } = req.params;
+
+      if (!projectId || !Types.ObjectId.isValid(projectId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid project ID is required"
+        });
+      }
+
+      // Find project and verify it belongs to the client
+      const project = await Project.findOne({
+        _id: new Types.ObjectId(projectId),
+        client: new Types.ObjectId(clientId)
+      })
+        .populate('teamLeaders', 'firstName lastName')
+        .populate('managers', 'firstName lastName')
+        .lean();
+
+      if (!project) {
+        return res.status(404).json({
+          success: false,
+          message: "Project not found or not accessible"
+        });
+      }
+
+      // Get all tasks for this project
+      const tasks = await Task.find({ project_id: new Types.ObjectId(projectId) })
+        .populate('assigned_employees', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // Calculate task statistics
+      const totalTasks = tasks.length;
+      const completedTasks = tasks.filter(task => task.status === 'Completed').length;
+      const inProgressTasks = tasks.filter(task => task.status === 'In Progress').length;
+      const completionPercentage = totalTasks > 0 
+        ? Math.round((completedTasks / totalTasks) * 100) 
+        : 0;
+
+      // Calculate duration in days
+      const startDate = new Date(project.startDate);
+      const endDate = new Date(project.endDate);
+      const durationInDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Get lead contact name
+      let leadContact = 'Not assigned';
+      // First check if there are managers
+      if (project.managers && project.managers.length > 0) {
+        const manager = project.managers[0] as any;
+        leadContact = `${manager.firstName} ${manager.lastName}`;
+      }
+      // If no managers, check for team leaders
+      else if (project.teamLeaders && project.teamLeaders.length > 0) {
+        const leader = project.teamLeaders[0] as any;
+        leadContact = `${leader.firstName} ${leader.lastName}`;
+      }
+
+      // Calculate team size (total of members, leaders, managers)
+      const teamSize = 
+        (project.teamMembers?.length || 0) + 
+        (project.teamLeaders?.length || 0) + 
+        (project.managers?.length || 0);
+
+      // Format tasks for response with proper type checking
+      const formattedTasks = tasks.map(task => {
+        // Get assigned employee name if available
+        let assignedTo = 'Unassigned';
+        if (task.assigned_employees && task.assigned_employees.length > 0) {
+          const employee = task.assigned_employees[0] as any; // Using any due to population
+          assignedTo = `${employee.firstName} ${employee.lastName}`;
+        }
+
+        return {
+          taskTitle: task.description,
+          status: task.status,
+          priority: task.priority || 'Medium', // Default priority if not in schema
+          dueDate: 'dueDate' in task && task.dueDate ? new Date(task.dueDate).toISOString() : null,
+          assignedTo
+        };
+      });
+
+      // Format project value as currency - change from USD to INR
+      const formattedProjectValue = new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR'
+      }).format(project.projectValue || 0);
+
+      // Construct response object with required structure
+      const response = {
+        projectOverview: {
+          projectName: project.projectName,
+          createdAt: project.created_at ? new Date(project.created_at).toISOString() : new Date().toISOString(),
+          description: project.projectDescription,
+          tags: project.tags || [],
+          projectValue: formattedProjectValue,
+          teamSize
+        },
+        projectProgress: {
+          completionPercentage
+        },
+        projectTimeline: {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString()
+        },
+        projectDetails: {
+          status: project.status,
+          priority: project.priority,
+          leadContact,
+          durationInDays
+        },
+        projectTasks: formattedTasks,
+        projectStats: {
+          totalTasks,
+          completedTasks,
+          inProgressTasks,
+          completionPercentage
+        }
+      };
+
+      return res.status(200).json({
+        success: true,
+        message: "Project details retrieved successfully",
+        data: response
+      });
+
+    } catch (error) {
+      console.error('Error retrieving project details:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving project details",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
 }
