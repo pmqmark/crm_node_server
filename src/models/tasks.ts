@@ -5,6 +5,8 @@ export interface ITask extends Document {
     assigned_employees: string[];
     description: string;
     status: 'Pending' | 'In Progress' | 'Completed' | 'On Hold';
+    dueDate?: Date; 
+    priority?: 'Low' | 'Medium' | 'High';
     createdAt: Date;
     updatedAt: Date;
 }
@@ -28,7 +30,18 @@ const taskSchema = new Schema<ITask>({
         type: String,
         enum: ['Pending', 'In Progress', 'Completed', 'On Hold'],
         default: 'Pending'
-    }
+    },
+    dueDate: {
+        type: Date,
+        required: false
+      },
+      priority: {
+        type: String,
+        enum: ['Low', 'Medium', 'High'],
+        default: 'Medium',
+        required: false
+      }
+
 }, {
     timestamps: true
 });
