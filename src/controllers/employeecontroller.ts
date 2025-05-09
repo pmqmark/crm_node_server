@@ -19,6 +19,7 @@ import { Client } from "../models/client";
 import BirthdayWish from "../models/birthdayWish";
 import LeaveForEmp, { ILeaveForEmp } from '../models/leaveforemp';
 import Policy from '../models/policy';
+import ProjectDisplay from '../models/project_display';
 dayjs.extend(isSameOrAfter); // << EXTEND DAYJS WITH THE PLUGIN
 
 export interface AuthRequest extends Request {
@@ -197,6 +198,63 @@ export class EmployeeController {
       });
     }
   }
+
+  async getProjectDisplayById(req: Request, res: Response): Promise<Response> {
+    try {
+      const { project_id } = req.params;
+  
+      // Validate project ID
+      if (!Types.ObjectId.isValid(project_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID format"
+        });
+      }
+  
+      // Get project display content
+      const projectDisplay = await ProjectDisplay.findOne({ project_id: new Types.ObjectId(project_id) });
+      
+      // Check if project display exists
+      if (!projectDisplay) {
+        return res.status(404).json({
+          success: false,
+          message: "Project display content not found"
+        });
+      }
+  
+      // Get basic project details
+      const project = await Project.findById(project_id)
+        .select('projectName status startDate endDate');
+  
+      return res.status(200).json({
+        success: true,
+        message: "Project display content retrieved successfully",
+        data: {
+          project_details: {
+            projectName: project?.projectName,
+            status: project?.status,
+            startDate: project?.startDate,
+            endDate: project?.endDate
+          },
+          display_content: {
+            _id: projectDisplay._id,
+            content: projectDisplay.content,
+            createdAt: projectDisplay.createdAt,
+            updatedAt: projectDisplay.updatedAt
+          }
+        }
+      });
+  
+    } catch (error) {
+      console.error('Error retrieving project display:', error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving project display",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+  
   
  
   
