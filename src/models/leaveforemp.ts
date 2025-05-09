@@ -25,7 +25,7 @@ const leaveForEmpSchema = new Schema<ILeaveForEmp>({
     },
     days: {
         type: Number,
-        required: true,
+        required: false,
         min: 0
     },
     year: {
