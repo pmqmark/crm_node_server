@@ -59,6 +59,9 @@ router.get("/my-profile", authMiddleware, (req, res) => {
   clientController.getMyClientProfile(req, res);
 });
 
+router.get('/projects/:projectId/details', authMiddleware, (req, res) => {
+  clientController.getProjectDetails(req, res);
+});
 
 router.post('/reviews', (req, res) => {
   clientController.createReview(req, res);
