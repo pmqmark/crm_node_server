@@ -25,6 +25,7 @@ import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth 
 import dayjs from 'dayjs'; 
 import Policy from "../models/policy";
 import LeaveForEmp from "../models/leaveforemp";
+import ProjectDisplay from "../models/project_display";
 
 
 interface CreateScheduleDto {
@@ -4468,6 +4469,63 @@ async getEmployeeChart(req: Request, res: Response): Promise<Response> {
     return res.status(500).json({
       success: false,
       message: "Error retrieving employee chart data",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+
+async createProjectDisplay(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: Admin ID is missing"
+      });
+    }
+
+    const { project_id, content } = req.body;
+
+    // Validate project_id
+    if (!project_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Project ID is required"
+      });
+    }
+
+    // Check if project exists
+    const project = await Project.findById(project_id);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found"
+      });
+    }
+
+    // Create project display
+    const projectDisplay = new ProjectDisplay({
+      project_id,
+      content: content || ""
+    });
+
+    const savedDisplay = await projectDisplay.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "Project display created successfully",
+      data: savedDisplay
+    });
+
+  } catch (error) {
+    console.error('Error creating project display:', error);
+    
+    // Handle duplicate key error
+    
+
+    return res.status(500).json({
+      success: false,
+      message: "Error creating project display",
       error: error instanceof Error ? error.message : "Unknown error"
     });
   }

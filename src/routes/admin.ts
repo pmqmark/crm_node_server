@@ -321,10 +321,14 @@ router.get('/leave/:id',(req,res)=>{
 })
 
 
+
 router.put('/update-leave-policy/:id',(req,res)=>{
     adminController.updateLeaveById(req,res)
 })
 
+router.post('cretate-projectview', (req, res) => {
+    adminController.createProjectDisplay(req, res)
+})
 
 export default router;
 
