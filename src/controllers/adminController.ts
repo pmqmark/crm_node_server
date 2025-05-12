@@ -24,6 +24,7 @@ import Skill from '../models/skill';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import dayjs from 'dayjs'; 
 import Policy from "../models/policy";
+import Todo from '../models/todo';
 import LeaveForEmp from "../models/leaveforemp";
 import ProjectDisplay from "../models/project_display";
 
@@ -4422,7 +4423,341 @@ export class AdminController {
     }
   }
   
+/**
+ * Get all todos for the logged-in admin
+ * Optionally filter by view (my day, important)
+ */
+async getTodos(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID is missing"
+      });
+    }
 
+    const adminId = req.user.id;
+    const { view } = req.query;
+    
+    // Build query for admin todos
+    const query: any = {
+      admin_id: new Types.ObjectId(adminId)
+    };
+    
+    // Add filters based on view parameter
+    if (view === 'myday') {
+      query.isMyDay = true;
+    } else if (view === 'important') {
+      query.isImportant = true;
+    }
+    
+    // Find todos matching the query
+    const todos = await Todo.find(query)
+      .sort({ created_at: -1 });
+    
+    // Calculate summary statistics
+    const summary = {
+      total: todos.length,
+      completed: todos.filter(todo => todo.completed).length,
+      remaining: todos.filter(todo => !todo.completed).length,
+      withDueDate: todos.filter(todo => todo.dueDate).length,
+      myDay: todos.filter(todo => todo.isMyDay).length,
+      important: todos.filter(todo => todo.isImportant).length
+    };
+    
+    return res.status(200).json({
+      success: true,
+      message: "Todos retrieved successfully",
+      summary,
+      data: todos
+    });
+    
+  } catch (error) {
+    console.error('Error retrieving todos:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving todos",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+/**
+ * Create a new todo for the admin
+ */
+async createTodo(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID is missing"
+      });
+    }
+
+    const adminId = req.user.id;
+    const { title } = req.body;
+    
+    // Validate required field
+    if (!title || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Todo title is required"
+      });
+    }
+    
+    // Create todo with admin_id
+    const todo = new Todo({
+      admin_id: adminId,
+      title,
+      completed: false,
+      isImportant: false,
+      isMyDay: false,
+      subtasks: [],
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+    
+    const savedTodo = await todo.save();
+    
+    return res.status(201).json({
+      success: true,
+      message: "Todo created successfully",
+      data: savedTodo
+    });
+    
+  } catch (error) {
+    console.error('Error creating todo:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error creating todo",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+/**
+ * Edit a todo - update properties and manage subtasks
+ */
+async editTodo(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID is missing"
+      });
+    }
+
+    const adminId = req.user.id;
+    const { todoId } = req.params;
+    const { 
+      title, 
+      completed, 
+      isImportant, 
+      isMyDay, 
+      dueDate,
+      reminderDate,
+      subtasks,
+      addSubtasks,
+      removeSubtaskIds
+    } = req.body;
+
+    // Validate todoId
+    if (!todoId || !Types.ObjectId.isValid(todoId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid todo ID is required"
+      });
+    }
+
+    // Find the todo
+    const todo = await Todo.findOne({
+      _id: new Types.ObjectId(todoId),
+      admin_id: new Types.ObjectId(adminId)
+    });
+
+    if (!todo) {
+      return res.status(404).json({
+        success: false,
+        message: "Todo not found"
+      });
+    }
+
+    // Update fields if provided
+    if (title !== undefined) todo.title = title;
+    if (completed !== undefined) todo.completed = completed;
+    if (isImportant !== undefined) todo.isImportant = isImportant;
+    if (isMyDay !== undefined) todo.isMyDay = isMyDay;
+    
+    // Handle date fields
+    if (dueDate !== undefined) {
+      todo.dueDate = dueDate ? new Date(dueDate) : null;
+    }
+    
+    if (reminderDate !== undefined) {
+      todo.reminderDate = reminderDate ? new Date(reminderDate) : null;
+    }
+    
+    // Handle subtasks operations
+    if (subtasks && Array.isArray(subtasks)) {
+      todo.subtasks = subtasks.map(subtask => ({
+        title: subtask.title,
+        completed: subtask.completed || false
+      }));
+    }
+    
+    if (addSubtasks && Array.isArray(addSubtasks)) {
+      const newSubtasks = addSubtasks.map(subtask => ({
+        title: subtask.title,
+        completed: subtask.completed || false
+      }));
+      
+      todo.subtasks = [...todo.subtasks, ...newSubtasks];
+    }
+    
+    if (removeSubtaskIds && Array.isArray(removeSubtaskIds) && removeSubtaskIds.length > 0) {
+      todo.subtasks = todo.subtasks.filter(subtask => 
+        !removeSubtaskIds.includes(subtask._id?.toString() || '')
+      );
+    }
+    
+    // Update modified timestamp
+    todo.updated_at = new Date();
+    await todo.save();
+    
+    return res.status(200).json({
+      success: true,
+      message: "Todo updated successfully",
+      data: todo
+    });
+    
+  } catch (error) {
+    console.error('Error updating todo:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error updating todo",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+/**
+ * Toggle todo completion status
+ */
+async toggleTodo(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID is missing"
+      });
+    }
+
+    const adminId = req.user.id;
+    const { todoId } = req.body;
+    
+    // Validate todoId
+    if (!todoId || !Types.ObjectId.isValid(todoId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid todo ID is required"
+      });
+    }
+    
+    // Find the todo
+    const todo = await Todo.findOne({
+      _id: new Types.ObjectId(todoId),
+      admin_id: new Types.ObjectId(adminId)
+    });
+    
+    if (!todo) {
+      return res.status(404).json({
+        success: false,
+        message: "Todo not found"
+      });
+    }
+    
+    // Toggle completed status
+    todo.completed = !todo.completed;
+    
+    // If the todo has subtasks, update all subtask statuses to match the parent
+    if (todo.subtasks && todo.subtasks.length > 0) {
+      todo.subtasks = todo.subtasks.map(subtask => ({
+        ...subtask,
+        completed: todo.completed
+      }));
+    }
+    
+    // Update modified timestamp
+    todo.updated_at = new Date();
+    await todo.save();
+    
+    return res.status(200).json({
+      success: true,
+      message: `Todo marked as ${todo.completed ? 'completed' : 'incomplete'}${todo.subtasks.length > 0 ? 
+        ' (all subtasks updated)' : ''}`,
+      data: todo
+    });
+    
+  } catch (error) {
+    console.error('Error toggling todo status:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error updating todo status",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+/**
+ * Delete a todo
+ */
+async deleteTodo(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID is missing"
+      });
+    }
+
+    const adminId = req.user.id;
+    const { todoId } = req.body;
+    
+    // Validate todoId
+    if (!todoId || !Types.ObjectId.isValid(todoId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid todo ID is required"
+      });
+    }
+    
+    // Delete the todo
+    const result = await Todo.findOneAndDelete({
+      _id: new Types.ObjectId(todoId),
+      admin_id: new Types.ObjectId(adminId)
+    });
+    
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Todo not found"
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: "Todo deleted successfully"
+    });
+    
+  } catch (error) {
+    console.error('Error deleting todo:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error deleting todo",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
 
 async getEmployeeChart(req: Request, res: Response): Promise<Response> {
   try {

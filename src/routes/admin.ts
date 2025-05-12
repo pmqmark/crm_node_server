@@ -334,6 +334,26 @@ router.get('/project-display/:project_id', (req, res) => {
     adminController.getProjectDisplayById(req, res);
 });
 
+router.get('/todos', authMiddleware, (req, res) => {
+    adminController.getTodos(req, res);
+});
+
+router.post('/todos', authMiddleware, (req, res) => {
+    adminController.createTodo(req, res);
+});
+
+router.patch('/todos/toggle', authMiddleware, (req, res) => {
+    adminController.toggleTodo(req, res);
+});
+
+router.delete('/todos', authMiddleware, (req, res) => {
+    adminController.deleteTodo(req, res);
+});
+
+router.put('/todos/:todoId', authMiddleware, (req, res) => {
+    adminController.editTodo(req, res);
+});
+
 export default router;
 
 
