@@ -196,10 +196,22 @@ router.get('/project-details-teams', (req, rees) => {
     adminController.getProjectDetails(req, rees)
 })
 
-router.post('/update-project', (req, res) => {
+router.post('/update-project/:project_id', (req, res) => {
     adminController.updateProject(req, res)
 })
 
+router.delete('/delete-project/:project_id', (req, res) => {
+    adminController.deleteProject(req, res)
+})
+
+router.delete('/delete-client/:client_id',(req,res)=>{
+    adminController.deleteClient(req,res)
+})
+
+
+router.post('/update-role/:role_id',(req,res)=>{
+    adminController.updateRole(req,res)
+})
 
 router.post('/add-task', (req, res) => {
     adminController.assignTask(req, res)
@@ -326,7 +338,7 @@ router.put('/update-leave-policy/:id',(req,res)=>{
     adminController.updateLeaveById(req,res)
 })
 
-router.post('cretate-projectview', (req, res) => {
+router.post('/cretate-projectview', (req, res) => {
     adminController.createProjectDisplay(req, res)
 })
 
