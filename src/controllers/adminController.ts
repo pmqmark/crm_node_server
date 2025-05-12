@@ -321,6 +321,180 @@ export class AdminController {
   }
 
 
+  async deleteClient(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: Admin ID is missing"
+      });
+    }
+
+    const { client_id } = req.params;
+
+    // Validate client ID
+    if (!Types.ObjectId.isValid(client_id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid client ID format"
+      });
+    }
+
+    // Check if client exists
+    const client = await Client.findById(client_id);
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: "Client not found"
+      });
+    }
+
+    // Check for active projects
+    const activeProjects = await Project.find({
+      client: new Types.ObjectId(client_id),
+      status: { $in: ['Not Started', 'In Progress'] }
+    });
+
+    if (activeProjects.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete client with active projects",
+        activeProjects: activeProjects.map(p => ({
+          id: p._id,
+          name: p.projectName,
+          status: p.status
+        }))
+      });
+    }
+
+    // Start deletion of related data
+    await Promise.all([
+      // Delete all projects associated with this client
+      Project.deleteMany({ client: new Types.ObjectId(client_id) }),
+      
+      // Delete all invoices associated with this client
+      Invoice.deleteMany({ client_id: new Types.ObjectId(client_id) }),
+      
+      // Delete all tickets associated with this client
+      Ticket.deleteMany({ client_id: new Types.ObjectId(client_id) }),
+      
+      // Delete all reviews associated with this client
+      Review.deleteMany({ user_id: new Types.ObjectId(client_id) })
+    ]);
+
+    // Finally, delete the client
+    await Client.findByIdAndDelete(client_id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Client and associated data deleted successfully",
+      data: {
+        clientName: client.companyName,
+        deletedAt: new Date()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error deleting client:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error deleting client",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+
+async updateRole(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: Admin ID is missing"
+      });
+    }
+
+    const { role_id } = req.params;
+    const { name, description, permissions } = req.body;
+
+    // Validate role ID
+    if (!Types.ObjectId.isValid(role_id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role ID format"
+      });
+    }
+
+    // Check if role exists
+    const existingRole = await Role.findById(role_id);
+    if (!existingRole) {
+      return res.status(404).json({
+        success: false,
+        message: "Role not found"
+      });
+    }
+
+    // Build update object
+    const updateData: any = {};
+    
+    // Only update provided fields
+    if (name) {
+      // Check if name is unique (excluding current role)
+      const duplicateName = await Role.findOne({ 
+        name, 
+        _id: { $ne: role_id }
+      });
+      
+      if (duplicateName) {
+        return res.status(400).json({
+          success: false,
+          message: "Role name must be unique"
+        });
+      }
+      updateData.name = name;
+    }
+
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+
+    if (permissions) {
+      if (!Array.isArray(permissions)) {
+        return res.status(400).json({
+          success: false,
+          message: "Permissions must be an array"
+        });
+      }
+      updateData.permissions = permissions;
+    }
+
+    // Update role
+    const updatedRole = await Role.findByIdAndUpdate(
+      role_id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Role updated successfully",
+      data: updatedRole
+    });
+
+  } catch (error) {
+    console.error('Error updating role:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error updating role",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+
+
+
+
 
 
 
@@ -674,6 +848,70 @@ export class AdminController {
     }
   }
 
+  async deleteProject(req: AuthRequest, res: Response): Promise<Response> {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: Admin ID is missing"
+      });
+    }
+
+    const { project_id } = req.params;
+
+    // Validate project ID
+    if (!Types.ObjectId.isValid(project_id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format"
+      });
+    }
+
+    // Check if project exists
+    const project = await Project.findById(project_id);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found"
+      });
+    }
+
+    // Check if project can be deleted
+    if (project.status === 'In Progress') {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete project that is in progress"
+      });
+    }
+
+    // Delete associated tasks
+    await Task.deleteMany({ project_id: new Types.ObjectId(project_id) });
+
+    // Delete project display content if exists
+    await ProjectDisplay.deleteOne({ project_id: new Types.ObjectId(project_id) });
+
+    // Delete the project
+    await Project.findByIdAndDelete(project_id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Project and associated data deleted successfully",
+      data: {
+        projectName: project.projectName,
+        deletedAt: new Date()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error deleting project",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
   async assignTask(req: Request, res: Response): Promise<Response> {
     try {
       const { project_id, assigned_employees, description, status = 'Pending' } = req.body;
@@ -765,6 +1003,8 @@ export class AdminController {
       });
     }
   }
+
+  
 
 
   async getLatestCompletedTasks(req: Request, res: Response): Promise<Response> {
