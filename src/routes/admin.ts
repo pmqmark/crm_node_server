@@ -330,6 +330,10 @@ router.post('cretate-projectview', (req, res) => {
     adminController.createProjectDisplay(req, res)
 })
 
+router.get('/project-display/:project_id', (req, res) => {
+    adminController.getProjectDisplayById(req, res);
+});
+
 router.get('/todos', authMiddleware, (req, res) => {
     adminController.getTodos(req, res);
 });

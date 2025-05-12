@@ -183,6 +183,10 @@ router.get('/get-policy', (req, res) => {
   employeeController.getPolicy(req, res);
 })
 
+router.get('/project-display/:project_id', (req, res) => {
+    employeeController.getProjectDisplayById(req, res);
+});
+
 
 
 
