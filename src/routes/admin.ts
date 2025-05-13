@@ -221,6 +221,10 @@ router.post('/get-project-tasks-stats', (req, res) => {
     adminController.getProjectTaskStatistics(req, res)
 })
 
+router.get('/tasks/:project_id',(req,res)=>{
+    adminController.getTasksByProjectId(req,res)
+})
+
 
 router.post('/get-project-tasks', (req, res) => {
     adminController.getProjectTasks(req, res)
