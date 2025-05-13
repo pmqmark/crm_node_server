@@ -86,7 +86,6 @@ const employeeSchema = new Schema<IEmployee>({
   status: {
     type: String,
     enum: ['Full-Time', 'Contract', 'Probation', 'WFH'],
-    default: 'Probation',
     required: true
 },
 leaveRef: {
