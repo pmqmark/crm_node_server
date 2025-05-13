@@ -1388,6 +1388,58 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
   }
 
 
+  async listAllInvoices(req: Request, res: Response): Promise<Response> {
+  try {
+    const { status, fromDate, toDate } = req.query;
+
+    // Build query
+    const query: any = {};
+
+    // Filter by status if provided
+    if (status) {
+      if (!['Pending', 'Paid', 'Overdue'].includes(status as string)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'"
+        });
+      }
+      query.status = status;
+    }
+
+    // Filter by date range
+    if (fromDate || toDate) {
+      query.invoiceDate = {};
+      if (fromDate) {
+        query.invoiceDate.$gte = new Date(fromDate as string);
+      }
+      if (toDate) {
+        query.invoiceDate.$lte = new Date(toDate as string);
+      }
+    }
+
+    // Get invoices with basic sorting
+    const invoices = await Invoice.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: "Invoices retrieved successfully",
+      total: invoices.length,
+      data: invoices
+    });
+
+  } catch (error) {
+    console.error('Error listing invoices:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving invoices",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+
   async getPolicy(req: Request, res: Response): Promise<Response> {
     try {
       // Get the latest policy document
