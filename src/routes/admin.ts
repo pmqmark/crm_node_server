@@ -196,7 +196,7 @@ router.get('/project-details-teams', (req, rees) => {
     adminController.getProjectDetails(req, rees)
 })
 
-router.post('/update-project/:project_id', (req, res) => {
+router.post('/update-project', (req, res) => {
     adminController.updateProject(req, res)
 })
 
