@@ -404,6 +404,39 @@ export class AdminController {
   }
 }
 
+async getTasksByProjectId(req: Request, res: Response): Promise<Response> {
+  try {
+    const { project_id } = req.params;
+
+    // Validate project ID
+    if (!Types.ObjectId.isValid(project_id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID format"
+      });
+    }
+
+    // Find tasks
+    const tasks = await Task.find({ 
+      project_id: new Types.ObjectId(project_id)
+    }).sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      message: "Tasks retrieved successfully",
+      data: tasks
+    });
+
+  } catch (error) {
+    console.error('Error retrieving tasks:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving tasks",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
 
 async updateRole(req: AuthRequest, res: Response): Promise<Response> {
   try {
