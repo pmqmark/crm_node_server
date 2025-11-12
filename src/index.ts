@@ -35,7 +35,7 @@ const PORT = process.env.PORT || 8080;
 console.log(PORT)
 
 app.listen(PORT, () => {
-  console.log(generateAccessToken(dummyUser))
+  //console.log(generateAccessToken(dummyUser))
   console.log(`Running on port ${PORT}`);
 });
 
