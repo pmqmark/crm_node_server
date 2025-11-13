@@ -1,51 +1,42 @@
-import { Request, Response } from 'express';
-import mongoose, { Schema, Types } from 'mongoose';
+import { Request, Response } from "express";
+import mongoose, { Schema, Types } from "mongoose";
 import Employee from "../models/employee";
 import Department from "../models/department";
-import { IDepartment } from '../dtos/departmentdto';
-import { Project } from '../models/projects';
-import { User } from '../dtos/userdto';
-import {IProject} from '../models/projects'
-import { Client } from '../models/client';
-
+import { IDepartment } from "../dtos/departmentdto";
+import { Project } from "../models/projects";
+import { User } from "../dtos/userdto";
+import { IProject } from "../models/projects";
+import { Client } from "../models/client";
 
 interface DepartmentUpdateFields {
-    name?: string;
-    description?: string;
-    manager_id?: Types.ObjectId; 
+  name?: string;
+  description?: string;
+  manager_id?: Types.ObjectId;
 }
-
 
 export interface AuthRequest extends Request {
   user?: User;
 }
 
-
-
-
 export class DepartmentController {
   async updateDepartment(req: Request, res: Response): Promise<Response> {
     try {
-      const updateData:IDepartment = req.body;
+      const updateData: IDepartment = req.body;
 
-      if(updateData.id==undefined){
-        throw new Error(
-            `id has to be provided`
-          );
+      if (updateData.id == undefined) {
+        throw new Error(`id has to be provided`);
       }
-      
-      
+
       const existingDepartment = await Department.findOne({
-        _id: updateData.id
+        _id: updateData.id,
       });
 
       if (!existingDepartment) {
         return res.status(404).json({
-          message: `Department with ID ${updateData.id} not found`
+          message: `Department with ID ${updateData.id} not found`,
         });
       }
 
-     
       const updateFields: DepartmentUpdateFields = {};
 
       if (updateData.name !== undefined) {
@@ -56,19 +47,17 @@ export class DepartmentController {
         updateFields.description = updateData.description;
       }
 
-     
       if (updateData.manager_id !== undefined) {
-       
         if (!Types.ObjectId.isValid(updateData.manager_id)) {
           throw new Error(
             `Invalid manager_id format: ${updateData.manager_id}`
           );
         }
-  
+
         const employeeExists = await Employee.exists({
-          _id: new Types.ObjectId(updateData.manager_id)
+          _id: new Types.ObjectId(updateData.manager_id),
         });
-  
+
         if (!employeeExists) {
           throw new Error(
             `Employee with ID ${updateData.manager_id} not found`
@@ -77,27 +66,25 @@ export class DepartmentController {
         updateFields.manager_id = new Types.ObjectId(updateData.manager_id);
       }
 
-     
       const updatedDepartment = await Department.findOneAndUpdate(
         { _id: updateData.id },
         { $set: updateFields },
         {
           new: true,
-          runValidators: true
+          runValidators: true,
         }
       );
 
       if (!updatedDepartment) {
         return res.status(500).json({
-          message: 'Department update failed'
+          message: "Department update failed",
         });
       }
 
       return res.status(200).json({
-        message: 'Department updated successfully',
-        data: updatedDepartment
+        message: "Department updated successfully",
+        data: updatedDepartment,
       });
-
     } catch (error) {
       return res.status(500).json({
         message: "Error updating department",
@@ -109,10 +96,10 @@ export class DepartmentController {
   async listDepartments(req: Request, res: Response): Promise<Response> {
     try {
       const departments = await Department.find();
-  
+
       return res.status(200).json({
         message: "Departments retrieved successfully",
-        data: departments
+        data: departments,
       });
     } catch (error) {
       return res.status(500).json({
@@ -126,120 +113,153 @@ export class DepartmentController {
     try {
       const projectData: IProject = req.body;
       const userId = req.user?.id;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
-          message: "User not authenticated"
+          message: "User not authenticated",
         });
       }
-      
+
       // Check required fields based on updated interface
-      if (!projectData.projectName || !projectData.projectDescription || !projectData.startDate || !projectData.endDate || !projectData.client) {
+      if (
+        !projectData.projectName ||
+        !projectData.projectDescription ||
+        !projectData.startDate ||
+        !projectData.endDate ||
+        !projectData.client
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Missing required fields: projectName, projectDescription, startDate, endDate, or client"
+          message:
+            "Missing required fields: projectName, projectDescription, startDate, endDate, or client",
         });
       }
-      
+
       // Validate dates
       const startDate = new Date(projectData.startDate);
       const endDate = new Date(projectData.endDate);
       const currentDate = new Date();
-      
-      if (startDate.getTime() < currentDate.getTime()) {
-        return res.status(400).json({
-          success: false,
-          message: "Start date cannot be in the past"
-        });
-      }
-      
+
+      // if (startDate.getTime() < currentDate.getTime()) {
+      //   return res.status(400).json({
+      //     success: false,
+      //     message: "Start date cannot be in the past",
+      //   });
+      // }
+
       if (endDate.getTime() < startDate.getTime()) {
         return res.status(400).json({
           success: false,
-          message: "End date cannot be before start date"
+          message: "End date cannot be before start date",
         });
       }
-      
+
       // Validate priority
-      if (!['Low', 'Medium', 'High'].includes(projectData.priority)) {
+      if (!["Low", "Medium", "High"].includes(projectData.priority)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid priority value. Must be 'Low', 'Medium', or 'High'"
+          message: "Invalid priority value. Must be 'Low', 'Medium', or 'High'",
         });
       }
-      
+
       // Validate status
-      if (!['Not Started', 'In Progress', 'Completed', 'On Hold'].includes(projectData.status)) {
+      if (
+        !["Not Started", "In Progress", "Completed", "On Hold"].includes(
+          projectData.status
+        )
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Invalid status value. Must be 'Not Started', 'In Progress', 'Completed', or 'On Hold'"
+          message:
+            "Invalid status value. Must be 'Not Started', 'In Progress', 'Completed', or 'On Hold'",
         });
       }
-      
+
       // Validate tags if provided
-      const validTags = ['Urgent', 'Internal', 'Client-Facing', 'Research', 'Maintenance'];
+      const validTags = [
+        "Urgent",
+        "Internal",
+        "Client-Facing",
+        "Research",
+        "Maintenance",
+      ];
       if (projectData.tags && projectData.tags.length > 0) {
-        const invalidTags = projectData.tags.filter(tag => !validTags.includes(tag));
+        const invalidTags = projectData.tags.filter(
+          (tag) => !validTags.includes(tag)
+        );
         if (invalidTags.length > 0) {
           return res.status(400).json({
             success: false,
-            message: `Invalid tags: ${invalidTags.join(', ')}`
+            message: `Invalid tags: ${invalidTags.join(", ")}`,
           });
         }
       }
-      
+
       // Verify client exists
       const client = await Client.findById(projectData.client);
       if (!client) {
         return res.status(400).json({
           success: false,
-          message: "Client not found"
+          message: "Client not found",
         });
       }
-      
+
       // Verify team members if provided
       if (projectData.teamMembers && projectData.teamMembers.length > 0) {
         const teamMembers = await Employee.find({
-          _id: { $in: projectData.teamMembers }
+          _id: { $in: projectData.teamMembers },
         });
-        
+
         if (teamMembers.length !== projectData.teamMembers.length) {
           return res.status(400).json({
             success: false,
-            message: "One or more team members not found"
+            message: "One or more team members not found",
           });
         }
       }
-      
+
       // Verify team leaders if provided
       if (projectData.teamLeaders && projectData.teamLeaders.length > 0) {
         const teamLeaders = await Employee.find({
-          _id: { $in: projectData.teamLeaders }
+          _id: { $in: projectData.teamLeaders },
         });
-        
+
         if (teamLeaders.length !== projectData.teamLeaders.length) {
           return res.status(400).json({
             success: false,
-            message: "One or more team leaders not found"
+            message: "One or more team leaders not found",
           });
         }
       }
-      
+
       // Verify managers if provided
       if (projectData.managers && projectData.managers.length > 0) {
         const managers = await Employee.find({
-          _id: { $in: projectData.managers }
+          _id: { $in: projectData.managers },
         });
-        
+
         if (managers.length !== projectData.managers.length) {
           return res.status(400).json({
             success: false,
-            message: "One or more managers not found"
+            message: "One or more managers not found",
           });
         }
       }
-      
+
+      // Before creating new project check for duplication
+      const existingProject = await Project.findOne({
+        projectName: projectData.projectName,
+        client: projectData.client,
+      });
+
+      if (existingProject) {
+        return res.status(409).json({
+          success: false,
+          message: "Duplicate project found",
+          error: `A project named "${projectData.projectName}" already exists for this client`,
+        });
+      }
       // Create new project with updated schema
       const project = new Project({
         projectName: projectData.projectName,
@@ -255,57 +275,56 @@ export class DepartmentController {
         status: projectData.status,
         tags: projectData.tags || [],
         created_at: new Date(),
-        created_by: userId
+        created_by: userId,
       });
-      
+
       const savedProject = await project.save();
-      
+
       // Populate references for response
       const populatedProject = await Project.findById(savedProject._id)
-        .populate('client', 'name')
-        .populate('teamMembers', 'firstName lastName employee_id')
-        .populate('teamLeaders', 'firstName lastName employee_id')
-        .populate('managers', 'firstName lastName employee_id')
-        .populate('created_by', 'firstName lastName employee_id')
+        .populate("client", "companyName")
+        .populate("teamMembers", "firstName lastName employee_id")
+        .populate("teamLeaders", "firstName lastName employee_id")
+        .populate("managers", "firstName lastName employee_id")
+        .populate("created_by", "firstName lastName employee_id")
         .exec();
-      
+
       return res.status(201).json({
         success: true,
         message: "Project created successfully",
-        project: populatedProject
+        project: populatedProject,
       });
-      
     } catch (error) {
-      console.error('Error creating project:', error);
-      
+      console.error("Error creating project:", error);
+
       if (error instanceof mongoose.Error.ValidationError) {
         return res.status(400).json({
           success: false,
           message: "Validation error",
-          errors: Object.values(error.errors).map(err => err.message)
+          errors: Object.values(error.errors).map((err) => err.message),
         });
       }
-      
+
       if (error instanceof Error) {
         if ((error as any).code === 11000) {
           return res.status(409).json({
             success: false,
             message: "Duplicate project name",
-            error: "A project with this name already exists"
+            error: "A project with this name already exists",
           });
         }
-        
+
         return res.status(500).json({
           success: false,
           message: "Error creating project",
-          error: error.message
+          error: error.message,
         });
       }
-      
+
       return res.status(500).json({
         success: false,
         message: "Error creating project",
-        error: "Unknown error occurred"
+        error: "Unknown error occurred",
       });
     }
   }
