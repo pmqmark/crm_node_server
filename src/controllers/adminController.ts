@@ -3,31 +3,44 @@ import bcrypt from "bcrypt";
 import { CreateAdminDto } from "../dtos/admindto";
 import { CreateEmployeeDto } from "../dtos/employeedto";
 import { IDepartment } from "../dtos/departmentdto";
-import Admin from '../models/admin'
+import Admin from "../models/admin";
 import Employee from "../models/employee";
 import Department from "../models/department";
 import { Client, IClient } from "../models/client";
 import Role from "../models/role";
+import User from "../models/user";
 import { IRole } from "../dtos/roledto";
 import { IProject, Project } from "../models/projects";
 import mongoose, { isValidObjectId, Types } from "mongoose";
 import AttendanceLog from "../models/logs";
 import Leave, { LeaveType } from "../models/leave";
-import Ticket from '../models/ticket';
-import Invoice from '../models/invoice';
-import { CreateInvoiceDto, UpdateInvoiceDto, GetInvoiceDto, DeleteInvoiceDto, detailCreateInvoiceDto } from '../dtos/invoicedto';
-import { AuthRequest } from '../middleware/verifyToken';
+import Ticket from "../models/ticket";
+import Invoice from "../models/invoice";
+import {
+  CreateInvoiceDto,
+  UpdateInvoiceDto,
+  GetInvoiceDto,
+  DeleteInvoiceDto,
+  detailCreateInvoiceDto,
+} from "../dtos/invoicedto";
+import { AuthRequest } from "../middleware/verifyToken";
 import Task from "../models/tasks";
 import Schedule from "../models/schedules";
 import { Review } from "../models/review";
-import Skill from '../models/skill';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import dayjs from 'dayjs'; 
+import Skill from "../models/skill";
+import {
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+} from "date-fns";
+import dayjs from "dayjs";
 import Policy from "../models/policy";
-import Todo from '../models/todo';
+import Todo from "../models/todo";
 import LeaveForEmp from "../models/leaveforemp";
 import ProjectDisplay from "../models/project_display";
-
 
 interface CreateScheduleDto {
   employee_ids: string[];
@@ -53,20 +66,26 @@ interface UpdateProjectDto {
   client?: string;
   startDate?: Date;
   endDate?: Date;
-  priority?: 'Low' | 'Medium' | 'High';
+  priority?: "Low" | "Medium" | "High";
   projectValue?: number;
   projectDescription?: string;
   teamMembers?: string[];
   teamLeaders?: string[];
   managers?: string[];
-  status?: 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
-  tags?: ('Urgent' | 'Internal' | 'Client-Facing' | 'Research' | 'Maintenance')[];
+  status?: "Not Started" | "In Progress" | "Completed" | "On Hold";
+  tags?: (
+    | "Urgent"
+    | "Internal"
+    | "Client-Facing"
+    | "Research"
+    | "Maintenance"
+  )[];
 }
 
 interface ScheduleFilters {
   fromDate?: Date;
   toDate?: Date;
-  status?: 'Scheduled' | 'Completed' | 'Cancelled';
+  status?: "Scheduled" | "Completed" | "Cancelled";
   employee_id?: string;
 }
 
@@ -76,15 +95,14 @@ interface ITeamLeader {
   lastName: string;
 }
 
-type StatusType = 'Full-Time' | 'Contract' | 'Probation' | 'WFH';
+type StatusType = "Full-Time" | "Contract" | "Probation" | "WFH";
 interface StatusCounts {
   total: number;
-  'Full-Time': number;
-  'Contract': number;
-  'Probation': number;
-  'WFH': number;
+  "Full-Time": number;
+  Contract: number;
+  Probation: number;
+  WFH: number;
 }
-
 
 interface ITaskEmployee {
   _id: Types.ObjectId;
@@ -114,15 +132,15 @@ interface TaskStats {
   total: number;
   statusCounts: {
     Pending: number;
-    'In Progress': number;
+    "In Progress": number;
     Completed: number;
-    'On Hold': number;
+    "On Hold": number;
   };
   statusPercentages: {
     Pending: number;
-    'In Progress': number;
+    "In Progress": number;
     Completed: number;
-    'On Hold': number;
+    "On Hold": number;
   };
 }
 
@@ -134,7 +152,7 @@ interface IPunchedEmployee {
   department_id?: Types.ObjectId;
   punchIn: Date;
   punchOut: Date | null;
-  status: 'Present' | 'Absent' | 'Half-Day';
+  status: "Present" | "Absent" | "Half-Day";
   totalHours: number;
 }
 
@@ -145,7 +163,6 @@ interface IPunchSummary {
 }
 
 export class AdminController {
-
   private getWeekdaysCount(startDate: Date, endDate: Date): number {
     let count = 0;
     const currentDate = new Date(startDate);
@@ -166,9 +183,7 @@ export class AdminController {
     try {
       const adminData: CreateAdminDto = req.body;
 
-
       const hashedPassword = await bcrypt.hash(adminData.password, 10);
-
 
       const admin = new Admin({
         email: adminData.email,
@@ -185,30 +200,30 @@ export class AdminController {
         message: "Admin created successfully",
         admin: savedAdmin,
       });
-
     } catch (error: unknown) {
       if (error instanceof Error) {
         return res.status(500).json({
-          message: `Error creating admin: ${error.message}`
+          message: `Error creating admin: ${error.message}`,
         });
       }
       return res.status(500).json({
-        message: "An unknown error occurred while creating admin"
+        message: "An unknown error occurred while creating admin",
       });
     }
-  };
-
-
+  }
 
   async updateProject(req: Request, res: Response): Promise<Response> {
     try {
       const updateData: UpdateProjectDto = req.body;
 
       // Validate project_id
-      if (!updateData.project_id || !Types.ObjectId.isValid(updateData.project_id)) {
+      if (
+        !updateData.project_id ||
+        !Types.ObjectId.isValid(updateData.project_id)
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Valid project ID is required"
+          message: "Valid project ID is required",
         });
       }
 
@@ -217,7 +232,7 @@ export class AdminController {
       if (!existingProject) {
         return res.status(404).json({
           success: false,
-          message: "Project not found"
+          message: "Project not found",
         });
       }
 
@@ -225,16 +240,19 @@ export class AdminController {
       const updateObj: Partial<IProject> = {};
 
       // Update basic fields if provided
-      if (updateData.projectName) updateObj.projectName = updateData.projectName;
-      if (updateData.projectDescription) updateObj.projectDescription = updateData.projectDescription;
-      if (updateData.projectValue) updateObj.projectValue = updateData.projectValue;
+      if (updateData.projectName)
+        updateObj.projectName = updateData.projectName;
+      if (updateData.projectDescription)
+        updateObj.projectDescription = updateData.projectDescription;
+      if (updateData.projectValue)
+        updateObj.projectValue = updateData.projectValue;
       if (updateData.priority) updateObj.priority = updateData.priority;
       if (updateData.status) updateObj.status = updateData.status;
 
       // Update dates if provided
-      if (updateData.startDate) updateObj.startDate = new Date(updateData.startDate);
+      if (updateData.startDate)
+        updateObj.startDate = new Date(updateData.startDate);
       if (updateData.endDate) updateObj.endDate = new Date(updateData.endDate);
-
 
       // Update client if provided
       if (updateData.client && Types.ObjectId.isValid(updateData.client)) {
@@ -242,49 +260,63 @@ export class AdminController {
         if (!clientExists) {
           return res.status(400).json({
             success: false,
-            message: "Invalid client ID"
+            message: "Invalid client ID",
           });
         }
-        updateObj.client = new mongoose.Schema.Types.ObjectId(updateData.client);
+        updateObj.client = new mongoose.Schema.Types.ObjectId(
+          updateData.client
+        );
       }
 
       // Update team members if provided
       if (updateData.teamMembers) {
-        const validMembers = updateData.teamMembers.filter(id => mongoose.Types.ObjectId.isValid(id));
+        const validMembers = updateData.teamMembers.filter((id) =>
+          mongoose.Types.ObjectId.isValid(id)
+        );
         const members = await Employee.find({ _id: { $in: validMembers } });
         if (members.length !== validMembers.length) {
           return res.status(400).json({
             success: false,
-            message: "One or more invalid team member IDs"
+            message: "One or more invalid team member IDs",
           });
         }
-        updateObj.teamMembers = validMembers.map(id => new mongoose.Schema.Types.ObjectId(id));
+        updateObj.teamMembers = validMembers.map(
+          (id) => new mongoose.Schema.Types.ObjectId(id)
+        );
       }
 
       // Update team leaders if provided
       if (updateData.teamLeaders) {
-        const validLeaders = updateData.teamLeaders.filter(id => mongoose.Types.ObjectId.isValid(id));
+        const validLeaders = updateData.teamLeaders.filter((id) =>
+          mongoose.Types.ObjectId.isValid(id)
+        );
         const leaders = await Employee.find({ _id: { $in: validLeaders } });
         if (leaders.length !== validLeaders.length) {
           return res.status(400).json({
             success: false,
-            message: "One or more invalid team leader IDs"
+            message: "One or more invalid team leader IDs",
           });
         }
-        updateObj.teamLeaders = validLeaders.map(id => new mongoose.Schema.Types.ObjectId(id));
+        updateObj.teamLeaders = validLeaders.map(
+          (id) => new mongoose.Schema.Types.ObjectId(id)
+        );
       }
 
       // Update managers if provided
       if (updateData.managers) {
-        const validManagers = updateData.managers.filter(id => mongoose.Types.ObjectId.isValid(id));
+        const validManagers = updateData.managers.filter((id) =>
+          mongoose.Types.ObjectId.isValid(id)
+        );
         const managers = await Employee.find({ _id: { $in: validManagers } });
         if (managers.length !== validManagers.length) {
           return res.status(400).json({
             success: false,
-            message: "One or more invalid manager IDs"
+            message: "One or more invalid manager IDs",
           });
         }
-        updateObj.managers = validManagers.map(id => new mongoose.Schema.Types.ObjectId(id));
+        updateObj.managers = validManagers.map(
+          (id) => new mongoose.Schema.Types.ObjectId(id)
+        );
       }
 
       // Update tags if provided
@@ -298,245 +330,232 @@ export class AdminController {
         { $set: updateObj },
         { new: true }
       ).populate([
-        { path: 'client', select: 'companyName' },
-        { path: 'teamMembers', select: 'firstName lastName' },
-        { path: 'teamLeaders', select: 'firstName lastName' },
-        { path: 'managers', select: 'firstName lastName' }
+        { path: "client", select: "companyName" },
+        { path: "teamMembers", select: "firstName lastName" },
+        { path: "teamLeaders", select: "firstName lastName" },
+        { path: "managers", select: "firstName lastName" },
       ]);
 
       return res.status(200).json({
         success: true,
         message: "Project updated successfully",
-        data: updatedProject
+        data: updatedProject,
       });
-
     } catch (error) {
-      console.error('Error updating project:', error);
+      console.error("Error updating project:", error);
       return res.status(500).json({
         success: false,
         message: "Error updating project",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async deleteClient(req: AuthRequest, res: Response): Promise<Response> {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: Admin ID is missing"
-      });
-    }
-
-    const { client_id } = req.params;
-
-    // Validate client ID
-    if (!Types.ObjectId.isValid(client_id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid client ID format"
-      });
-    }
-
-    // Check if client exists
-    const client = await Client.findById(client_id);
-    if (!client) {
-      return res.status(404).json({
-        success: false,
-        message: "Client not found"
-      });
-    }
-
-    // Check for active projects
-    const activeProjects = await Project.find({
-      client: new Types.ObjectId(client_id),
-      status: { $in: ['Not Started', 'In Progress'] }
-    });
-
-    if (activeProjects.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Cannot delete client with active projects",
-        activeProjects: activeProjects.map(p => ({
-          id: p._id,
-          name: p.projectName,
-          status: p.status
-        }))
-      });
-    }
-
-    // Start deletion of related data
-    await Promise.all([
-      // Delete all projects associated with this client
-      Project.deleteMany({ client: new Types.ObjectId(client_id) }),
-      
-      // Delete all invoices associated with this client
-      Invoice.deleteMany({ client_id: new Types.ObjectId(client_id) }),
-      
-      // Delete all tickets associated with this client
-      Ticket.deleteMany({ client_id: new Types.ObjectId(client_id) }),
-      
-      // Delete all reviews associated with this client
-      Review.deleteMany({ user_id: new Types.ObjectId(client_id) })
-    ]);
-
-    // Finally, delete the client
-    await Client.findByIdAndDelete(client_id);
-
-    return res.status(200).json({
-      success: true,
-      message: "Client and associated data deleted successfully",
-      data: {
-        clientName: client.companyName,
-        deletedAt: new Date()
-      }
-    });
-
-  } catch (error) {
-    console.error('Error deleting client:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error deleting client",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-}
-
-async getTasksByProjectId(req: Request, res: Response): Promise<Response> {
-  try {
-    const { project_id } = req.params;
-
-    // Validate project ID
-    if (!Types.ObjectId.isValid(project_id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid project ID format"
-      });
-    }
-
-    // Find tasks
-    const tasks = await Task.find({ 
-      project_id: new Types.ObjectId(project_id)
-    }).sort({ createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      message: "Tasks retrieved successfully",
-      data: tasks
-    });
-
-  } catch (error) {
-    console.error('Error retrieving tasks:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving tasks",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-}
-
-
-async updateRole(req: AuthRequest, res: Response): Promise<Response> {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: Admin ID is missing"
-      });
-    }
-
-    const { role_id } = req.params;
-    const { name, description, permissions } = req.body;
-
-    // Validate role ID
-    if (!Types.ObjectId.isValid(role_id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid role ID format"
-      });
-    }
-
-    // Check if role exists
-    const existingRole = await Role.findById(role_id);
-    if (!existingRole) {
-      return res.status(404).json({
-        success: false,
-        message: "Role not found"
-      });
-    }
-
-    // Build update object
-    const updateData: any = {};
-    
-    // Only update provided fields
-    if (name) {
-      // Check if name is unique (excluding current role)
-      const duplicateName = await Role.findOne({ 
-        name, 
-        _id: { $ne: role_id }
-      });
-      
-      if (duplicateName) {
-        return res.status(400).json({
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
           success: false,
-          message: "Role name must be unique"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
-      updateData.name = name;
-    }
 
-    if (description !== undefined) {
-      updateData.description = description;
-    }
+      const { client_id } = req.params;
 
-    if (permissions) {
-      if (!Array.isArray(permissions)) {
+      // Validate client ID
+      if (!Types.ObjectId.isValid(client_id)) {
         return res.status(400).json({
           success: false,
-          message: "Permissions must be an array"
+          message: "Invalid client ID format",
         });
       }
-      updateData.permissions = permissions;
+
+      // Check if client exists
+      const client = await Client.findById(client_id);
+      if (!client) {
+        return res.status(404).json({
+          success: false,
+          message: "Client not found",
+        });
+      }
+
+      // Check for active projects
+      const activeProjects = await Project.find({
+        client: new Types.ObjectId(client_id),
+        status: { $in: ["Not Started", "In Progress"] },
+      });
+
+      if (activeProjects.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot delete client with active projects",
+          activeProjects: activeProjects.map((p) => ({
+            id: p._id,
+            name: p.projectName,
+            status: p.status,
+          })),
+        });
+      }
+
+      // Start deletion of related data
+      await Promise.all([
+        // Delete all projects associated with this client
+        Project.deleteMany({ client: new Types.ObjectId(client_id) }),
+
+        // Delete all invoices associated with this client
+        Invoice.deleteMany({ client_id: new Types.ObjectId(client_id) }),
+
+        // Delete all tickets associated with this client
+        Ticket.deleteMany({ client_id: new Types.ObjectId(client_id) }),
+
+        // Delete all reviews associated with this client
+        Review.deleteMany({ user_id: new Types.ObjectId(client_id) }),
+      ]);
+
+      // Finally, delete the client
+      await Client.findByIdAndDelete(client_id);
+
+      return res.status(200).json({
+        success: true,
+        message: "Client and associated data deleted successfully",
+        data: {
+          clientName: client.companyName,
+          deletedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error("Error deleting client:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting client",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
-
-    // Update role
-    const updatedRole = await Role.findByIdAndUpdate(
-      role_id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Role updated successfully",
-      data: updatedRole
-    });
-
-  } catch (error) {
-    console.error('Error updating role:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error updating role",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
   }
-}
 
+  async getTasksByProjectId(req: Request, res: Response): Promise<Response> {
+    try {
+      const { project_id } = req.params;
 
+      // Validate project ID
+      if (!Types.ObjectId.isValid(project_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID format",
+        });
+      }
 
+      // Find tasks
+      const tasks = await Task.find({
+        project_id: new Types.ObjectId(project_id),
+      }).sort({ createdAt: -1 });
 
+      return res.status(200).json({
+        success: true,
+        message: "Tasks retrieved successfully",
+        data: tasks,
+      });
+    } catch (error) {
+      console.error("Error retrieving tasks:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving tasks",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
 
+  async updateRole(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Admin ID is missing",
+        });
+      }
 
+      const { role_id } = req.params;
+      const { name, description, permissions } = req.body;
 
+      // Validate role ID
+      if (!Types.ObjectId.isValid(role_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid role ID format",
+        });
+      }
+
+      // Check if role exists
+      const existingRole = await Role.findById(role_id);
+      if (!existingRole) {
+        return res.status(404).json({
+          success: false,
+          message: "Role not found",
+        });
+      }
+
+      // Build update object
+      const updateData: any = {};
+
+      // Only update provided fields
+      if (name) {
+        // Check if name is unique (excluding current role)
+        const duplicateName = await Role.findOne({
+          name,
+          _id: { $ne: role_id },
+        });
+
+        if (duplicateName) {
+          return res.status(400).json({
+            success: false,
+            message: "Role name must be unique",
+          });
+        }
+        updateData.name = name;
+      }
+
+      if (description !== undefined) {
+        updateData.description = description;
+      }
+
+      if (permissions) {
+        if (!Array.isArray(permissions)) {
+          return res.status(400).json({
+            success: false,
+            message: "Permissions must be an array",
+          });
+        }
+        updateData.permissions = permissions;
+      }
+
+      // Update role
+      const updatedRole = await Role.findByIdAndUpdate(
+        role_id,
+        { $set: updateData },
+        { new: true, runValidators: true }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Role updated successfully",
+        data: updatedRole,
+      });
+    } catch (error) {
+      console.error("Error updating role:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating role",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
 
   async createSchedule(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
 
@@ -550,7 +569,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         scheduled_time: new Date(scheduleData.scheduled_time),
         title: scheduleData.title,
         created_by: req.user.id,
-        status: 'Scheduled'
+        status: "Scheduled",
       });
 
       const savedSchedule = await schedule.save();
@@ -558,7 +577,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!savedSchedule) {
         return res.status(500).json({
           success: false,
-          message: "Error saving schedule"
+          message: "Error saving schedule",
         });
       }
 
@@ -575,37 +594,35 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           status: savedSchedule.status,
           created_by: savedSchedule.created_by,
           created_at: savedSchedule.created_at?.toISOString(),
-          updated_at: savedSchedule.updated_at?.toISOString()
-        }
+          updated_at: savedSchedule.updated_at?.toISOString(),
+        },
       });
-
     } catch (error) {
-      console.error('Error creating schedule:', error);
+      console.error("Error creating schedule:", error);
       return res.status(500).json({
         success: false,
         message: "Error creating schedule",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-
   async listSchedules(req: Request, res: Response): Promise<Response> {
     try {
       const schedules = await Schedule.find()
-      .populate({
-        path:'employee_ids',
-        select:'firstName lastName'
-      })
-      .populate({
-        path:'created_by',
-        select:'firstName lastName'
-      })
+        .populate({
+          path: "employee_ids",
+          select: "firstName lastName",
+        })
+        .populate({
+          path: "created_by",
+          select: "firstName lastName",
+        });
 
       return res.status(200).json({
-        success:true,
+        success: true,
         message: "Schedules retrieved successfully",
-        data: schedules
+        data: schedules,
       });
     } catch (error) {
       return res.status(500).json({
@@ -624,47 +641,52 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project_id || !Types.ObjectId.isValid(project_id)) {
         return res.status(400).json({
           success: false,
-          message: "Valid project ID is required"
+          message: "Valid project ID is required",
         });
       }
 
       // Get project details
-      const project = await Project.findById(project_id)
-        .select('projectName status teamLeaders teamMembers managers');
+      const project = await Project.findById(project_id).select(
+        "projectName status teamLeaders teamMembers managers"
+      );
 
       if (!project) {
         return res.status(404).json({
           success: false,
-          message: "Project not found"
+          message: "Project not found",
         });
       }
 
       // Get team leaders details
-      console.log(project.teamLeaders)
+      console.log(project.teamLeaders);
       const teamLeaders = await Employee.find({
-        _id: { $in: project.teamLeaders }
-      }).select('firstName lastName');
+        _id: { $in: project.teamLeaders },
+      }).select("firstName lastName");
 
-      console.log(teamLeaders)
+      console.log(teamLeaders);
 
       // Get team members details
       const teamMembers = await Employee.find({
-        _id: { $in: project.teamMembers }
-      }).select('firstName lastName role_id');
+        _id: { $in: project.teamMembers },
+      }).select("firstName lastName role_id");
 
       // Get team members' roles
-      const roleIds = teamMembers.map(member => member.role_id).filter(id => id);
+      const roleIds = teamMembers
+        .map((member) => member.role_id)
+        .filter((id) => id);
       const roles = await Role.find({
-        _id: { $in: roleIds }
-      }).select('_id name');
+        _id: { $in: roleIds },
+      }).select("_id name");
 
       // Create roles map
-      const rolesMap = new Map(roles.map(role => [role._id.toString(), role.name]));
+      const rolesMap = new Map(
+        roles.map((role) => [role._id.toString(), role.name])
+      );
 
       // Get managers details
       const managers = await Employee.find({
-        _id: { $in: project.managers }
-      }).select('firstName lastName');
+        _id: { $in: project.managers },
+      }).select("firstName lastName");
 
       return res.status(200).json({
         success: true,
@@ -673,42 +695,46 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           projectId: project._id,
           projectName: project.projectName,
           status: project.status,
-          teamLeaders: teamLeaders.map(leader => ({
+          teamLeaders: teamLeaders.map((leader) => ({
             id: leader._id.toString(),
-            name: `${leader.firstName} ${leader.lastName}`
+            name: `${leader.firstName} ${leader.lastName}`,
           })),
-          teamMembers: teamMembers.map(member => ({
+          teamMembers: teamMembers.map((member) => ({
             id: member._id.toString(),
             name: `${member.firstName} ${member.lastName}`,
-            role: member.role_id ? rolesMap.get(member.role_id.toString()) || 'No Role Assigned' : 'No Role Assigned'
+            role: member.role_id
+              ? rolesMap.get(member.role_id.toString()) || "No Role Assigned"
+              : "No Role Assigned",
           })),
-          managers: managers.map(manager => ({
+          managers: managers.map((manager) => ({
             id: manager._id.toString(),
-            name: `${manager.firstName} ${manager.lastName}`
-          }))
-        }
+            name: `${manager.firstName} ${manager.lastName}`,
+          })),
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error retrieving project details",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async addTeamMember(req: Request, res: Response): Promise<Response> {
     try {
       const { project_id, employee_id } = req.body;
 
       // Validate IDs
-      if (!project_id || !Types.ObjectId.isValid(project_id) ||
-        !employee_id || !Types.ObjectId.isValid(employee_id)) {
+      if (
+        !project_id ||
+        !Types.ObjectId.isValid(project_id) ||
+        !employee_id ||
+        !Types.ObjectId.isValid(employee_id)
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Valid project ID and employee ID are required"
+          message: "Valid project ID and employee ID are required",
         });
       }
 
@@ -717,7 +743,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project) {
         return res.status(400).json({
           success: false,
-          message: "Project not found"
+          message: "Project not found",
         });
       }
 
@@ -726,7 +752,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!employee) {
         return res.status(400).json({
           success: false,
-          message: "Employee not found"
+          message: "Employee not found",
         });
       }
 
@@ -735,8 +761,8 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         project_id,
         {
           $addToSet: {
-            teamMembers: new Types.ObjectId(employee_id)
-          }
+            teamMembers: new Types.ObjectId(employee_id),
+          },
         },
         { new: true }
       );
@@ -746,30 +772,32 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         message: "Team member added successfully",
         data: {
           project_id: updatedProject?._id,
-          teamMembers: updatedProject?.teamMembers
-        }
+          teamMembers: updatedProject?.teamMembers,
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error adding team member",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async addTeamLeader(req: Request, res: Response): Promise<Response> {
     try {
       const { project_id, employee_id } = req.body;
 
       // Validate IDs
-      if (!project_id || !Types.ObjectId.isValid(project_id) ||
-        !employee_id || !Types.ObjectId.isValid(employee_id)) {
+      if (
+        !project_id ||
+        !Types.ObjectId.isValid(project_id) ||
+        !employee_id ||
+        !Types.ObjectId.isValid(employee_id)
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Valid project ID and employee ID are required"
+          message: "Valid project ID and employee ID are required",
         });
       }
 
@@ -778,7 +806,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project) {
         return res.status(400).json({
           success: false,
-          message: "Project not found"
+          message: "Project not found",
         });
       }
 
@@ -787,7 +815,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!employee) {
         return res.status(400).json({
           success: false,
-          message: "Employee not found"
+          message: "Employee not found",
         });
       }
 
@@ -796,8 +824,8 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         project_id,
         {
           $addToSet: {
-            teamLeaders: new Types.ObjectId(employee_id)
-          }
+            teamLeaders: new Types.ObjectId(employee_id),
+          },
         },
         { new: true }
       );
@@ -807,30 +835,32 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         message: "Team leader added successfully",
         data: {
           project_id: updatedProject?._id,
-          teamLeaders: updatedProject?.teamLeaders
-        }
+          teamLeaders: updatedProject?.teamLeaders,
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error adding team leader",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async addProjectManager(req: Request, res: Response): Promise<Response> {
     try {
       const { project_id, employee_id } = req.body;
 
       // Validate IDs
-      if (!project_id || !Types.ObjectId.isValid(project_id) ||
-        !employee_id || !Types.ObjectId.isValid(employee_id)) {
+      if (
+        !project_id ||
+        !Types.ObjectId.isValid(project_id) ||
+        !employee_id ||
+        !Types.ObjectId.isValid(employee_id)
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Valid project ID and employee ID are required"
+          message: "Valid project ID and employee ID are required",
         });
       }
 
@@ -839,7 +869,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project) {
         return res.status(400).json({
           success: false,
-          message: "Project not found"
+          message: "Project not found",
         });
       }
 
@@ -848,7 +878,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!employee) {
         return res.status(400).json({
           success: false,
-          message: "Employee not found"
+          message: "Employee not found",
         });
       }
 
@@ -857,8 +887,8 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         project_id,
         {
           $addToSet: {
-            managers: new Types.ObjectId(employee_id)
-          }
+            managers: new Types.ObjectId(employee_id),
+          },
         },
         { new: true }
       );
@@ -868,92 +898,98 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         message: "Project manager added successfully",
         data: {
           project_id: updatedProject?._id,
-          managers: updatedProject?.managers
-        }
+          managers: updatedProject?.managers,
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error adding project manager",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
   async deleteProject(req: AuthRequest, res: Response): Promise<Response> {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: Admin ID is missing"
-      });
-    }
-
-    const { project_id } = req.params;
-
-    // Validate project ID
-    if (!Types.ObjectId.isValid(project_id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid project ID format"
-      });
-    }
-
-    // Check if project exists
-    const project = await Project.findById(project_id);
-    if (!project) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found"
-      });
-    }
-
-    // Check if project can be deleted
-    if (project.status === 'In Progress') {
-      return res.status(400).json({
-        success: false,
-        message: "Cannot delete project that is in progress"
-      });
-    }
-
-    // Delete associated tasks
-    await Task.deleteMany({ project_id: new Types.ObjectId(project_id) });
-
-    // Delete project display content if exists
-    await ProjectDisplay.deleteOne({ project_id: new Types.ObjectId(project_id) });
-
-    // Delete the project
-    await Project.findByIdAndDelete(project_id);
-
-    return res.status(200).json({
-      success: true,
-      message: "Project and associated data deleted successfully",
-      data: {
-        projectName: project.projectName,
-        deletedAt: new Date()
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Admin ID is missing",
+        });
       }
-    });
 
-  } catch (error) {
-    console.error('Error deleting project:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error deleting project",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
+      const { project_id } = req.params;
+
+      // Validate project ID
+      if (!Types.ObjectId.isValid(project_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID format",
+        });
+      }
+
+      // Check if project exists
+      const project = await Project.findById(project_id);
+      if (!project) {
+        return res.status(404).json({
+          success: false,
+          message: "Project not found",
+        });
+      }
+
+      // Check if project can be deleted
+      if (project.status === "In Progress") {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot delete project that is in progress",
+        });
+      }
+
+      // Delete associated tasks
+      await Task.deleteMany({ project_id: new Types.ObjectId(project_id) });
+
+      // Delete project display content if exists
+      await ProjectDisplay.deleteOne({
+        project_id: new Types.ObjectId(project_id),
+      });
+
+      // Delete the project
+      await Project.findByIdAndDelete(project_id);
+
+      return res.status(200).json({
+        success: true,
+        message: "Project and associated data deleted successfully",
+        data: {
+          projectName: project.projectName,
+          deletedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting project",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
-}
 
   async assignTask(req: Request, res: Response): Promise<Response> {
     try {
-      const { project_id, assigned_employees, description, status = 'Pending' } = req.body;
+      const {
+        project_id,
+        assigned_employees,
+        description,
+        status = "Pending",
+      } = req.body;
 
       // Validate required fields
       if (!project_id || !Array.isArray(assigned_employees) || !description) {
         return res.status(400).json({
           success: false,
-          message: "Project ID, assigned employees array, and description are required"
+          message:
+            "Project ID, assigned employees array, and description are required",
         });
       }
 
@@ -962,46 +998,48 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project) {
         return res.status(404).json({
           success: false,
-          message: "Project not found"
+          message: "Project not found",
         });
       }
 
       // Validate all employee IDs are valid ObjectIds
-      const validObjectIds = assigned_employees.every(id => Types.ObjectId.isValid(id));
+      const validObjectIds = assigned_employees.every((id) =>
+        Types.ObjectId.isValid(id)
+      );
       if (!validObjectIds) {
         return res.status(400).json({
           success: false,
-          message: "One or more employee IDs are not valid ObjectIds"
+          message: "One or more employee IDs are not valid ObjectIds",
         });
       }
 
       // Convert string IDs to ObjectIds for querying
-      const objectIds = assigned_employees.map(id => new Types.ObjectId(id));
+      const objectIds = assigned_employees.map((id) => new Types.ObjectId(id));
 
       // Validate employees exist using _id
       const validEmployees = await Employee.find({
-        _id: { $in: objectIds }
-      }).select('_id firstName lastName');
+        _id: { $in: objectIds },
+      }).select("_id firstName lastName");
 
       // Debug logging
       console.log("Found employees count:", validEmployees.length);
       console.log("Expected employees count:", assigned_employees.length);
 
       if (validEmployees.length !== assigned_employees.length) {
-        const foundIds = validEmployees.map(emp => emp._id.toString());
+        const foundIds = validEmployees.map((emp) => emp._id.toString());
 
         // Log for debugging
         console.log("Found IDs:", foundIds);
         console.log("Assigned employee IDs:", assigned_employees);
 
-        const invalidIds = assigned_employees.filter(id =>
-          !foundIds.some(foundId => foundId === id.toString())
+        const invalidIds = assigned_employees.filter(
+          (id) => !foundIds.some((foundId) => foundId === id.toString())
         );
 
         return res.status(400).json({
           success: false,
           message: "Some employee IDs are invalid",
-          invalidEmployees: invalidIds
+          invalidEmployees: invalidIds,
         });
       }
 
@@ -1020,34 +1058,33 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         message: "Task assigned successfully",
         data: {
           ...savedTask.toObject(),
-          assignedEmployeeDetails: validEmployees.map(emp => ({
+          assignedEmployeeDetails: validEmployees.map((emp) => ({
             _id: emp._id,
-            name: `${emp.firstName} ${emp.lastName}`
-          }))
-        }
+            name: `${emp.firstName} ${emp.lastName}`,
+          })),
+        },
       });
-
     } catch (error) {
       console.error("Error in assignTask:", error);
       return res.status(500).json({
         success: false,
         message: "Error assigning task",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-  
-
-
-  async getLatestCompletedTasks(req: Request, res: Response): Promise<Response> {
+  async getLatestCompletedTasks(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
     try {
       const { project_id } = req.body;
 
       if (!project_id || !Types.ObjectId.isValid(project_id)) {
         return res.status(400).json({
           success: false,
-          message: "Valid project ID is required"
+          message: "Valid project ID is required",
         });
       }
 
@@ -1055,27 +1092,29 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project) {
         return res.status(404).json({
           success: false,
-          message: "Project not found"
+          message: "Project not found",
         });
       }
 
       const completedTasks = await Task.find({
         project_id: new Types.ObjectId(project_id),
-        status: 'Completed'
+        status: "Completed",
       })
-        .populate<{ assigned_employees: ITaskEmployee[] }>('assigned_employees', 'firstName lastName')
-        .select('description assigned_employees completed_at created_at')
+        .populate<{ assigned_employees: ITaskEmployee[] }>(
+          "assigned_employees",
+          "firstName lastName"
+        )
+        .select("description assigned_employees completed_at created_at")
         .sort({ completed_at: -1 })
         .limit(8);
 
-      const formattedTasks = completedTasks.map(task => ({
+      const formattedTasks = completedTasks.map((task) => ({
         _id: task._id,
         description: task.description,
-        assigned_employees: task.assigned_employees.map(emp => ({
+        assigned_employees: task.assigned_employees.map((emp) => ({
           id: emp._id,
-          name: `${emp.firstName} ${emp.lastName}`
+          name: `${emp.firstName} ${emp.lastName}`,
         })),
-
       }));
 
       return res.status(200).json({
@@ -1083,20 +1122,17 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         message: "Latest completed tasks retrieved successfully",
         data: {
           projectName: project.projectName,
-          tasks: formattedTasks
-        }
+          tasks: formattedTasks,
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error retrieving completed tasks",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
-
 
   async getClientCount(req: Request, res: Response): Promise<Response> {
     try {
@@ -1106,15 +1142,14 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         success: true,
         message: "Client count retrieved successfully",
         data: {
-          totalClients
-        }
+          totalClients,
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error retrieving client count",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -1127,19 +1162,21 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         success: true,
         message: "Client count retrieved successfully",
         data: {
-          totalProjects
-        }
+          totalProjects,
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error retrieving client count",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-  async getTodaysPunchedEmployees(req: Request, res: Response): Promise<Response> {
+  async getTodaysPunchedEmployees(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -1151,64 +1188,64 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           $match: {
             date: {
               $gte: today,
-              $lt: tomorrow
-            }
-          }
+              $lt: tomorrow,
+            },
+          },
         },
         {
           $lookup: {
-            from: 'users', // Since Employee is a discriminator of User
-            localField: 'employee_id',
-            foreignField: '_id',
-            as: 'employeeDetails'
-          }
+            from: "users", // Since Employee is a discriminator of User
+            localField: "employee_id",
+            foreignField: "_id",
+            as: "employeeDetails",
+          },
         },
         {
-          $unwind: '$employeeDetails'
+          $unwind: "$employeeDetails",
         },
         {
           $match: {
-            'employeeDetails.__t': 'Employee' // Filter for Employee discriminator
-          }
+            "employeeDetails.__t": "Employee", // Filter for Employee discriminator
+          },
         },
         {
           $project: {
-            employeeId: '$employeeDetails.employee_id',
-            firstName: '$employeeDetails.firstName',
-            lastName: '$employeeDetails.lastName',
-            department_id: '$employeeDetails.department_id',
+            employeeId: "$employeeDetails.employee_id",
+            firstName: "$employeeDetails.firstName",
+            lastName: "$employeeDetails.lastName",
+            department_id: "$employeeDetails.department_id",
             punchIn: 1,
             punchOut: 1,
             status: 1,
-            totalHours: 1
-          }
+            totalHours: 1,
+          },
         },
         {
-          $sort: { punchIn: -1 }
-        }
+          $sort: { punchIn: -1 },
+        },
       ]);
 
       const summary: IPunchSummary = {
         totalPunchedIn: punchedEmployees.length,
-        currentlyWorking: punchedEmployees.filter(emp => !emp.punchOut).length,
-        completedShift: punchedEmployees.filter(emp => emp.punchOut).length
+        currentlyWorking: punchedEmployees.filter((emp) => !emp.punchOut)
+          .length,
+        completedShift: punchedEmployees.filter((emp) => emp.punchOut).length,
       };
 
       return res.status(200).json({
         message: "Today's punched employees retrieved successfully",
-        date: today.toISOString().split('T')[0],
+        date: today.toISOString().split("T")[0],
         summary,
-        data: punchedEmployees.map(emp => ({
+        data: punchedEmployees.map((emp) => ({
           ...emp,
           punchIn: emp.punchIn.toLocaleTimeString(),
-          punchOut: emp.punchOut ? emp.punchOut.toLocaleTimeString() : null
-        }))
+          punchOut: emp.punchOut ? emp.punchOut.toLocaleTimeString() : null,
+        })),
       });
-
     } catch (error) {
       return res.status(500).json({
         message: "Error retrieving punched employees",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -1250,7 +1287,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
   //         } else {
   //             // Get from all collections
   //             const results = await Promise.all(
-  //                 Object.values(collections).map(model => 
+  //                 Object.values(collections).map(model =>
   //                     model.find(query).sort({ createdAt: -1 }).limit(100)
   //                 )
   //             );
@@ -1267,7 +1304,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
   //         }));
 
   //         // Sort by date
-  //         formattedLogs.sort((a, b) => 
+  //         formattedLogs.sort((a, b) =>
   //             b.createdAt.getTime() - a.createdAt.getTime()
   //         );
 
@@ -1294,13 +1331,12 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
   //     }
   // }
 
-
   async createInvoice1(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
 
@@ -1308,10 +1344,14 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const invoiceData: detailCreateInvoiceDto = req.body;
 
       // Validate required fields
-      if (!invoiceData.client_id || !invoiceData.items || !invoiceData.dueDate) {
+      if (
+        !invoiceData.client_id ||
+        !invoiceData.items ||
+        !invoiceData.dueDate
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Client ID, items array, and due date are required"
+          message: "Client ID, items array, and due date are required",
         });
       }
 
@@ -1319,7 +1359,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!Types.ObjectId.isValid(invoiceData.client_id)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid client ID format"
+          message: "Invalid client ID format",
         });
       }
 
@@ -1327,7 +1367,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!client) {
         return res.status(400).json({
           success: false,
-          message: "Client not found"
+          message: "Client not found",
         });
       }
 
@@ -1336,7 +1376,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (!Types.ObjectId.isValid(invoiceData.project_id)) {
           return res.status(400).json({
             success: false,
-            message: "Invalid project ID format"
+            message: "Invalid project ID format",
           });
         }
 
@@ -1344,7 +1384,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (!project) {
           return res.status(400).json({
             success: false,
-            message: "Project not found"
+            message: "Project not found",
           });
         }
       }
@@ -1353,7 +1393,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
         return res.status(400).json({
           success: false,
-          message: "At least one item is required"
+          message: "At least one item is required",
         });
       }
 
@@ -1362,21 +1402,28 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (!item.service_name || !item.service_type) {
           return res.status(400).json({
             success: false,
-            message: "Each item must have service_name and service_type"
+            message: "Each item must have service_name and service_type",
           });
         }
 
-        if (item.service_type === 'hourly' && (!item.hours || !item.rate_per_hour)) {
+        if (
+          item.service_type === "hourly" &&
+          (!item.hours || !item.rate_per_hour)
+        ) {
           return res.status(400).json({
             success: false,
-            message: "Hourly services require hours and rate_per_hour"
+            message: "Hourly services require hours and rate_per_hour",
           });
         }
 
-        if ((item.service_type === 'fixed' || item.service_type === 'subscription') && !item.fixed_price) {
+        if (
+          (item.service_type === "fixed" ||
+            item.service_type === "subscription") &&
+          !item.fixed_price
+        ) {
           return res.status(400).json({
             success: false,
-            message: "Fixed and subscription services require fixed_price"
+            message: "Fixed and subscription services require fixed_price",
           });
         }
       }
@@ -1384,108 +1431,103 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       // Create invoice
       const invoice = new Invoice({
         client_id: new Types.ObjectId(invoiceData.client_id),
-        project_id: invoiceData.project_id ? new Types.ObjectId(invoiceData.project_id) : undefined,
+        project_id: invoiceData.project_id
+          ? new Types.ObjectId(invoiceData.project_id)
+          : undefined,
         items: invoiceData.items,
         tax_rate: invoiceData.tax_rate,
         description: invoiceData.description,
         terms: invoiceData.terms,
         invoiceDate: invoiceData.invoiceDate || new Date(),
         dueDate: new Date(invoiceData.dueDate),
-        status: 'Pending',
+        status: "Pending",
         createdBy: new Types.ObjectId(adminId),
-        isVisible: true
+        isVisible: true,
       });
 
       const savedInvoice = await invoice.save();
 
       // Populate references for response
       await savedInvoice.populate([
-        { path: 'client_id', select: 'companyName contactPerson email' },
-        { path: 'project_id', select: 'projectName' }
+        { path: "client_id", select: "companyName contactPerson email" },
+        { path: "project_id", select: "projectName" },
       ]);
 
       return res.status(201).json({
         success: true,
         message: "Invoice created successfully",
-        data: savedInvoice
+        data: savedInvoice,
       });
-
     } catch (error) {
-      console.error('Error creating invoice:', error);
+      console.error("Error creating invoice:", error);
       return res.status(500).json({
         success: false,
         message: "Error creating invoice",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-
   async listAllInvoices(req: Request, res: Response): Promise<Response> {
-  try {
-    const { status, fromDate, toDate } = req.query;
+    try {
+      const { status, fromDate, toDate } = req.query;
 
-    // Build query
-    const query: any = {};
+      // Build query
+      const query: any = {};
 
-    // Filter by status if provided
-    if (status) {
-      if (!['Pending', 'Paid', 'Overdue'].includes(status as string)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'"
-        });
+      // Filter by status if provided
+      if (status) {
+        if (!["Pending", "Paid", "Overdue"].includes(status as string)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'",
+          });
+        }
+        query.status = status;
       }
-      query.status = status;
+
+      // Filter by date range
+      if (fromDate || toDate) {
+        query.invoiceDate = {};
+        if (fromDate) {
+          query.invoiceDate.$gte = new Date(fromDate as string);
+        }
+        if (toDate) {
+          query.invoiceDate.$lte = new Date(toDate as string);
+        }
+      }
+
+      // Get invoices with basic sorting
+      const invoices = await Invoice.find(query).sort({ createdAt: -1 }).lean();
+
+      return res.status(200).json({
+        success: true,
+        message: "Invoices retrieved successfully",
+        total: invoices.length,
+        data: invoices,
+      });
+    } catch (error) {
+      console.error("Error listing invoices:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving invoices",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
-
-    // Filter by date range
-    if (fromDate || toDate) {
-      query.invoiceDate = {};
-      if (fromDate) {
-        query.invoiceDate.$gte = new Date(fromDate as string);
-      }
-      if (toDate) {
-        query.invoiceDate.$lte = new Date(toDate as string);
-      }
-    }
-
-    // Get invoices with basic sorting
-    const invoices = await Invoice.find(query)
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return res.status(200).json({
-      success: true,
-      message: "Invoices retrieved successfully",
-      total: invoices.length,
-      data: invoices
-    });
-
-  } catch (error) {
-    console.error('Error listing invoices:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving invoices",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
   }
-}
-
 
   async getPolicy(req: Request, res: Response): Promise<Response> {
     try {
       // Get the latest policy document
-      const policy = await Policy.findOne()
-        .sort({ updatedAt: -1 });
-  
+      const policy = await Policy.findOne().sort({ updatedAt: -1 });
+
       if (!policy) {
         return res.status(404).json({
           success: false,
-          message: "No policy found"
+          message: "No policy found",
         });
       }
-  
+
       return res.status(200).json({
         success: true,
         message: "Policy retrieved successfully",
@@ -1494,85 +1536,89 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           content: policy.content,
           dated: policy.dated,
           updatedAt: policy.updatedAt,
-          createdAt: policy.createdAt
-        }
+          createdAt: policy.createdAt,
+        },
       });
-  
     } catch (error) {
-      console.error('Error retrieving policy:', error);
+      console.error("Error retrieving policy:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving policy",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
   async getLeaveForEmp(req: Request, res: Response) {
-    
-      const leaves = await LeaveForEmp.find()
-      console.log(leaves)
-
-    
-   
+    const leaves = await LeaveForEmp.find();
+    console.log(leaves);
   }
-
 
   async createLeaveForEmp(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
-  
-      const { name, description, days, year, isDefault, isHoliday, isSpecific, holidayDate, employee_id } = req.body;
-  
+
+      const {
+        name,
+        description,
+        days,
+        year,
+        isDefault,
+        isHoliday,
+        isSpecific,
+        holidayDate,
+        employee_id,
+      } = req.body;
+
       // Validate required fields
       if (!name || !days || !year) {
         return res.status(400).json({
           success: false,
-          message: "Name, days, and year are required"
+          message: "Name, days, and year are required",
         });
       }
-  
+
       // Validate employee_id if isSpecific is true
       if (isSpecific && !employee_id) {
         return res.status(400).json({
           success: false,
-          message: "Employee ID is required for specific leave configuration"
+          message: "Employee ID is required for specific leave configuration",
         });
       }
-  
+
       // Check if year is valid
       const currentYear = new Date().getFullYear();
       if (year < currentYear) {
         return res.status(400).json({
           success: false,
-          message: "Year must be current or future year"
+          message: "Year must be current or future year",
         });
       }
-  
+
       // If this is a default leave type, check if one already exists
       if (isDefault) {
         const existingDefault = await LeaveForEmp.findOne({ isDefault: true });
         if (existingDefault) {
           return res.status(400).json({
             success: false,
-            message: "A default leave configuration already exists"
+            message: "A default leave configuration already exists",
           });
         }
       }
-  
+
       // Validate holiday date if isHoliday is true
       if (isHoliday && !holidayDate) {
         return res.status(400).json({
           success: false,
-          message: "Holiday date is required when isHoliday is true"
+          message: "Holiday date is required when isHoliday is true",
         });
       }
-  
+
       // Create new leave configuration
       const leaveConfig = new LeaveForEmp({
         name,
@@ -1582,85 +1628,82 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         isDefault: isDefault || false,
         isHoliday: isHoliday || false,
         isSpecific: isSpecific || false,
-        ...(isHoliday && { holidayDate: new Date(holidayDate) })
+        ...(isHoliday && { holidayDate: new Date(holidayDate) }),
       });
-  
+
       const savedLeave = await leaveConfig.save();
-  
+
       // If isSpecific is true, update the employee's leaveRef
       if (isSpecific && employee_id) {
         const employee = await Employee.findById(employee_id);
-        
+
         if (!employee) {
           // Delete the created leave config since employee wasn't found
           await LeaveForEmp.findByIdAndDelete(savedLeave._id);
           return res.status(404).json({
             success: false,
-            message: "Employee not found"
+            message: "Employee not found",
           });
         }
-  
+
         // Update employee's leaveRef
         await Employee.findByIdAndUpdate(
           employee_id,
-          { 
-            $set: { 
-              leaveRef: savedLeave._id 
-            }
+          {
+            $set: {
+              leaveRef: savedLeave._id,
+            },
           },
           { new: true }
         );
       }
-  
+
       return res.status(201).json({
         success: true,
         message: "Leave configuration created successfully",
         data: {
           ...savedLeave.toObject(),
-          ...(isSpecific && { assigned_to: employee_id })
-        }
+          ...(isSpecific && { assigned_to: employee_id }),
+        },
       });
-  
     } catch (error) {
-      console.error('Error creating leave configuration:', error);
+      console.error("Error creating leave configuration:", error);
       return res.status(500).json({
         success: false,
         message: "Error creating leave configuration",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
-
 
   async updatePolicy(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
-  
+
       const { title, content, dated } = req.body;
-  
+
       // Validate required fields
       if (!title || !content) {
         return res.status(400).json({
           success: false,
-          message: "Title and content are required"
+          message: "Title and content are required",
         });
       }
-  
+
       // Find existing policy - there should only be one
       const existingPolicy = await Policy.findOne();
       if (!existingPolicy) {
         return res.status(404).json({
           success: false,
-          message: "No policy found to update"
+          message: "No policy found to update",
         });
       }
-  
+
       // Update policy
       const updatedPolicy = await Policy.findByIdAndUpdate(
         existingPolicy._id,
@@ -1670,55 +1713,53 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
             content,
             dated: dated || new Date(),
             updatedBy: new Types.ObjectId(req.user.id),
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         },
         { new: true }
       );
-  
+
       if (!updatedPolicy) {
         return res.status(404).json({
           success: false,
-          message: "Failed to update policy"
+          message: "Failed to update policy",
         });
       }
-  
+
       return res.status(200).json({
         success: true,
         message: "Policy updated successfully",
-        data: updatedPolicy
+        data: updatedPolicy,
       });
-  
     } catch (error) {
-      console.error('Error updating policy:', error);
+      console.error("Error updating policy:", error);
       return res.status(500).json({
         success: false,
         message: "Error updating policy",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async createPolicy(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
-  
+
       const { title, content, dated } = req.body;
-  
+
       // Validate required fields
       if (!title || !content) {
         return res.status(400).json({
           success: false,
-          message: "Title and content are required"
+          message: "Title and content are required",
         });
       }
-  
+
       // Check if a policy already exists
       const existingPolicy = await Policy.findOne();
       if (existingPolicy) {
@@ -1731,53 +1772,51 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
               content,
               dated: dated || new Date(),
               updatedBy: new Types.ObjectId(req.user.id),
-              updatedAt: new Date()
-            }
+              updatedAt: new Date(),
+            },
           },
           { new: true }
         );
-  
+
         return res.status(200).json({
           success: true,
           message: "Policy updated successfully",
-          data: updatedPolicy
+          data: updatedPolicy,
         });
       }
-  
+
       // Create new policy if none exists
       const policy = new Policy({
         title,
         content,
         dated: dated || new Date(),
         createdBy: new Types.ObjectId(req.user.id),
-        isActive: true
+        isActive: true,
       });
-  
+
       const savedPolicy = await policy.save();
-  
+
       return res.status(201).json({
         success: true,
         message: "Policy created successfully",
-        data: savedPolicy
+        data: savedPolicy,
       });
-  
     } catch (error) {
-      console.error('Error creating/updating policy:', error);
+      console.error("Error creating/updating policy:", error);
       return res.status(500).json({
         success: false,
         message: "Error creating/updating policy",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async updateInvoice1(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
 
@@ -1788,7 +1827,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!Types.ObjectId.isValid(id)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid invoice ID format"
+          message: "Invalid invoice ID format",
         });
       }
 
@@ -1797,12 +1836,12 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!existingInvoice) {
         return res.status(404).json({
           success: false,
-          message: "Invoice not found"
+          message: "Invoice not found",
         });
       }
 
       // Handle soft delete if isVisible is provided
-      if (typeof updateData.isVisible === 'boolean') {
+      if (typeof updateData.isVisible === "boolean") {
         updateData.updatedAt = new Date();
       }
 
@@ -1811,7 +1850,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (!Array.isArray(updateData.items) || updateData.items.length === 0) {
           return res.status(400).json({
             success: false,
-            message: "At least one item is required"
+            message: "At least one item is required",
           });
         }
 
@@ -1820,28 +1859,35 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           if (!item.service_name || !item.service_type) {
             return res.status(400).json({
               success: false,
-              message: "Each item must have service_name and service_type"
+              message: "Each item must have service_name and service_type",
             });
           }
 
-          if (item.service_type === 'hourly' && (!item.hours || !item.rate_per_hour)) {
+          if (
+            item.service_type === "hourly" &&
+            (!item.hours || !item.rate_per_hour)
+          ) {
             return res.status(400).json({
               success: false,
-              message: "Hourly services require hours and rate_per_hour"
+              message: "Hourly services require hours and rate_per_hour",
             });
           }
 
-          if ((item.service_type === 'fixed' || item.service_type === 'subscription') && !item.fixed_price) {
+          if (
+            (item.service_type === "fixed" ||
+              item.service_type === "subscription") &&
+            !item.fixed_price
+          ) {
             return res.status(400).json({
               success: false,
-              message: "Fixed and subscription services require fixed_price"
+              message: "Fixed and subscription services require fixed_price",
             });
           }
         }
       }
 
       // Handle status update
-      if (updateData.status === 'Paid' && !updateData.paymentDate) {
+      if (updateData.status === "Paid" && !updateData.paymentDate) {
         updateData.paymentDate = new Date();
       }
 
@@ -1851,69 +1897,67 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         {
           $set: {
             ...updateData,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         },
         {
           new: true,
-          runValidators: true
+          runValidators: true,
         }
       ).populate([
-        { path: 'client_id', select: 'companyName contactPerson email' },
-        { path: 'project_id', select: 'projectName' }
+        { path: "client_id", select: "companyName contactPerson email" },
+        { path: "project_id", select: "projectName" },
       ]);
 
       if (!updatedInvoice) {
         return res.status(404).json({
           success: false,
-          message: "Invoice not found"
+          message: "Invoice not found",
         });
       }
 
       return res.status(200).json({
         success: true,
         message: "Invoice updated successfully",
-        data: updatedInvoice
+        data: updatedInvoice,
       });
-
     } catch (error) {
-      console.error('Error updating invoice:', error);
+      console.error("Error updating invoice:", error);
       return res.status(500).json({
         success: false,
         message: "Error updating invoice",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async getLeavepolicyForEmp(req: Request, res: Response): Promise<Response> {
     try {
       const { isSpecific, isHoliday, isDefault } = req.query;
       const query: any = {};
-  
+
       // Build query based on filters
-      if (typeof isSpecific === 'string') {
-        query.isSpecific = isSpecific.toLowerCase() === 'true';
+      if (typeof isSpecific === "string") {
+        query.isSpecific = isSpecific.toLowerCase() === "true";
       }
-      if (typeof isHoliday === 'string') {
-        query.isHoliday = isHoliday.toLowerCase() === 'true';
+      if (typeof isHoliday === "string") {
+        query.isHoliday = isHoliday.toLowerCase() === "true";
       }
-      if (typeof isDefault === 'string') {
-        query.isDefault = isDefault.toLowerCase() === 'true';
+      if (typeof isDefault === "string") {
+        query.isDefault = isDefault.toLowerCase() === "true";
       }
-  
+
       // Get leaves based on filters
       const leaves = await LeaveForEmp.find(query).sort({ updatedAt: -1 });
-  
+
       // Group and format the response
       const formattedResponse = {
         defaultLeave: [] as any[],
         holidays: [] as any[],
-        specificLeaves: [] as any[]
+        specificLeaves: [] as any[],
       };
-  
-      leaves.forEach(leave => {
+
+      leaves.forEach((leave) => {
         const leaveData = {
           _id: leave._id,
           name: leave.name,
@@ -1922,9 +1966,9 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           year: leave.year,
           holidayDate: leave.holidayDate,
           createdAt: leave.createdAt,
-          updatedAt: leave.updatedAt
+          updatedAt: leave.updatedAt,
         };
-  
+
         if (leave.isDefault) {
           formattedResponse.defaultLeave.push(leaveData);
         } else if (leave.isHoliday) {
@@ -1933,28 +1977,27 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           formattedResponse.specificLeaves.push(leaveData);
         }
       });
-  
+
       // Calculate summary
       const summary = {
         total: leaves.length,
         defaultCount: formattedResponse.defaultLeave.length,
         holidaysCount: formattedResponse.holidays.length,
-        specificLeavesCount: formattedResponse.specificLeaves.length
+        specificLeavesCount: formattedResponse.specificLeaves.length,
       };
-  
+
       return res.status(200).json({
         success: true,
         message: "Leave configurations retrieved successfully",
         summary,
-        data: formattedResponse
+        data: formattedResponse,
       });
-  
     } catch (error) {
-      console.error('Error retrieving leave configurations:', error);
+      console.error("Error retrieving leave configurations:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving leave configurations",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -1967,7 +2010,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project_id || !Types.ObjectId.isValid(project_id)) {
         return res.status(400).json({
           success: false,
-          message: "Valid project ID is required"
+          message: "Valid project ID is required",
         });
       }
 
@@ -1976,26 +2019,27 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project) {
         return res.status(404).json({
           success: false,
-          message: "Project not found"
+          message: "Project not found",
         });
       }
 
       // Get all tasks for the project
       const tasks = await Task.find({
-        project_id: new Types.ObjectId(project_id)
+        project_id: new Types.ObjectId(project_id),
       })
-        .select('description status assigned_employees created_at')
+        .select("description status assigned_employees created_at")
         .sort({ created_at: -1 });
 
       // Calculate task statistics
       const taskStats = {
         total: tasks.length,
         status: {
-          Pending: tasks.filter(task => task.status === 'Pending').length,
-          'In Progress': tasks.filter(task => task.status === 'In Progress').length,
-          Completed: tasks.filter(task => task.status === 'Completed').length,
-          'On Hold': tasks.filter(task => task.status === 'On Hold').length
-        }
+          Pending: tasks.filter((task) => task.status === "Pending").length,
+          "In Progress": tasks.filter((task) => task.status === "In Progress")
+            .length,
+          Completed: tasks.filter((task) => task.status === "Completed").length,
+          "On Hold": tasks.filter((task) => task.status === "On Hold").length,
+        },
       };
 
       return res.status(200).json({
@@ -2004,57 +2048,55 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         data: {
           projectName: project.projectName,
           statistics: taskStats,
-          tasks: tasks
-        }
+          tasks: tasks,
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error retrieving project tasks",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async updateDefaultLeave(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
-  
+
       const { name, description, days, year } = req.body;
-  
+
       // Validate required fields
       if (!name || !days || !year) {
         return res.status(400).json({
           success: false,
-          message: "Name, days, and year are required"
+          message: "Name, days, and year are required",
         });
       }
-  
+
       // Check if year is valid
       const currentYear = new Date().getFullYear();
       if (year < currentYear) {
         return res.status(400).json({
           success: false,
-          message: "Year must be current or future year"
+          message: "Year must be current or future year",
         });
       }
-  
+
       // Find the default leave document
       const defaultLeave = await LeaveForEmp.findOne({ isDefault: true });
       if (!defaultLeave) {
         return res.status(404).json({
           success: false,
-          message: "No default leave configuration found"
+          message: "No default leave configuration found",
         });
       }
-  
+
       // Update the default leave document
       const updatedLeave = await LeaveForEmp.findByIdAndUpdate(
         defaultLeave._id,
@@ -2064,107 +2106,107 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
             description,
             days,
             year,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         },
         { new: true }
       );
-  
+
       return res.status(200).json({
         success: true,
         message: "Default leave configuration updated successfully",
-        data: updatedLeave
+        data: updatedLeave,
       });
-  
     } catch (error) {
-      console.error('Error updating default leave:', error);
+      console.error("Error updating default leave:", error);
       return res.status(500).json({
         success: false,
         message: "Error updating default leave configuration",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
   async getProjectDisplayById(req: Request, res: Response): Promise<Response> {
-  try {
-    const { project_id } = req.params;
+    try {
+      const { project_id } = req.params;
 
-    // Validate project ID
-    if (!Types.ObjectId.isValid(project_id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid project ID format"
-      });
-    }
-
-    // Get project display content
-    const projectDisplay = await ProjectDisplay.findOne({ project_id: new Types.ObjectId(project_id) });
-    
-    // Check if project display exists
-    if (!projectDisplay) {
-      return res.status(404).json({
-        success: false,
-        message: "Project display content not found"
-      });
-    }
-
-    // Get basic project details
-    const project = await Project.findById(project_id)
-      .select('projectName status startDate endDate');
-
-    return res.status(200).json({
-      success: true,
-      message: "Project display content retrieved successfully",
-      data: {
-        project_details: {
-          projectName: project?.projectName,
-          status: project?.status,
-          startDate: project?.startDate,
-          endDate: project?.endDate
-        },
-        display_content: {
-          _id: projectDisplay._id,
-          content: projectDisplay.content,
-          createdAt: projectDisplay.createdAt,
-          updatedAt: projectDisplay.updatedAt
-        }
+      // Validate project ID
+      if (!Types.ObjectId.isValid(project_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID format",
+        });
       }
-    });
 
-  } catch (error) {
-    console.error('Error retrieving project display:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving project display",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
+      // Get project display content
+      const projectDisplay = await ProjectDisplay.findOne({
+        project_id: new Types.ObjectId(project_id),
+      });
+
+      // Check if project display exists
+      if (!projectDisplay) {
+        return res.status(404).json({
+          success: false,
+          message: "Project display content not found",
+        });
+      }
+
+      // Get basic project details
+      const project = await Project.findById(project_id).select(
+        "projectName status startDate endDate"
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Project display content retrieved successfully",
+        data: {
+          project_details: {
+            projectName: project?.projectName,
+            status: project?.status,
+            startDate: project?.startDate,
+            endDate: project?.endDate,
+          },
+          display_content: {
+            _id: projectDisplay._id,
+            content: projectDisplay.content,
+            createdAt: projectDisplay.createdAt,
+            updatedAt: projectDisplay.updatedAt,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error retrieving project display:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving project display",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
-}
-
 
   async getLeaveById(req: Request, res: Response): Promise<Response> {
     try {
       const { id } = req.params;
-  
+
       // Validate leave ID
       if (!Types.ObjectId.isValid(id)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid leave ID format"
+          message: "Invalid leave ID format",
         });
       }
-  
+
       // Find leave by ID
       const leave = await LeaveForEmp.findById(id);
-  
+
       if (!leave) {
         return res.status(404).json({
           success: false,
-          message: "Leave configuration not found"
+          message: "Leave configuration not found",
         });
       }
-  
+
       // Format response
       const formattedLeave = {
         _id: leave._id,
@@ -2177,82 +2219,82 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         isSpecific: leave.isSpecific,
         holidayDate: leave.holidayDate,
         createdAt: leave.createdAt,
-        updatedAt: leave.updatedAt
+        updatedAt: leave.updatedAt,
       };
-  
+
       return res.status(200).json({
         success: true,
         message: "Leave configuration retrieved successfully",
-        data: formattedLeave
+        data: formattedLeave,
       });
-  
     } catch (error) {
-      console.error('Error retrieving leave configuration:', error);
+      console.error("Error retrieving leave configuration:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving leave configuration",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-  
 
   async updateLeaveById(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
-  
+
       const { id } = req.params;
-      const { name, description, days, year, isHoliday, holidayDate } = req.body;
-  
+      const { name, description, days, year, isHoliday, holidayDate } =
+        req.body;
+
       // Validate leave ID
       if (!Types.ObjectId.isValid(id)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid leave ID format"
+          message: "Invalid leave ID format",
         });
       }
-  
+
       // Find leave
       const leave = await LeaveForEmp.findById(id);
       if (!leave) {
         return res.status(404).json({
           success: false,
-          message: "Leave configuration not found"
+          message: "Leave configuration not found",
         });
       }
-  
+
       // Don't allow updating isDefault status
       if (leave.isDefault) {
         return res.status(400).json({
           success: false,
-          message: "Default leave configuration can only be updated using updateDefaultLeave"
+          message:
+            "Default leave configuration can only be updated using updateDefaultLeave",
         });
       }
-  
+
       // Check if year is valid
       if (year) {
         const currentYear = new Date().getFullYear();
         if (year < currentYear) {
           return res.status(400).json({
             success: false,
-            message: "Year must be current or future year"
+            message: "Year must be current or future year",
           });
         }
       }
-  
+
       // Validate holiday date if isHoliday is true
       if (isHoliday && !holidayDate) {
         return res.status(400).json({
           success: false,
-          message: "Holiday date is required when isHoliday is true"
+          message: "Holiday date is required when isHoliday is true",
         });
       }
-  
+
       // Update leave configuration
       const updateData: any = {};
       if (name) updateData.name = name;
@@ -2261,32 +2303,32 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (year) updateData.year = year;
       if (isHoliday !== undefined) updateData.isHoliday = isHoliday;
       if (holidayDate) updateData.holidayDate = new Date(holidayDate);
-  
+
       const updatedLeave = await LeaveForEmp.findByIdAndUpdate(
         id,
         { $set: updateData },
         { new: true }
       );
-  
+
       return res.status(200).json({
         success: true,
         message: "Leave configuration updated successfully",
-        data: updatedLeave
+        data: updatedLeave,
       });
-  
     } catch (error) {
-      console.error('Error updating leave configuration:', error);
+      console.error("Error updating leave configuration:", error);
       return res.status(500).json({
         success: false,
         message: "Error updating leave configuration",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-
-
-  async getProjectTaskStatistics(req: Request, res: Response): Promise<Response> {
+  async getProjectTaskStatistics(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
     try {
       const { project_id } = req.body;
 
@@ -2294,7 +2336,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project_id || !Types.ObjectId.isValid(project_id)) {
         return res.status(400).json({
           success: false,
-          message: "Valid project ID is required"
+          message: "Valid project ID is required",
         });
       }
 
@@ -2303,7 +2345,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!project) {
         return res.status(404).json({
           success: false,
-          message: "Project not found"
+          message: "Project not found",
         });
       }
 
@@ -2311,48 +2353,51 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const taskStats = await Task.aggregate([
         {
           $match: {
-            project_id: new Types.ObjectId(project_id)
-          }
+            project_id: new Types.ObjectId(project_id),
+          },
         },
         {
           $group: {
-            _id: '$status',
-            count: { $sum: 1 }
-          }
-        }
+            _id: "$status",
+            count: { $sum: 1 },
+          },
+        },
       ]);
 
       // Initialize stats object
       const stats: TaskStats = {
         total: 0,
         statusCounts: {
-          'Pending': 0,
-          'In Progress': 0,
-          'Completed': 0,
-          'On Hold': 0
+          Pending: 0,
+          "In Progress": 0,
+          Completed: 0,
+          "On Hold": 0,
         },
         statusPercentages: {
-          'Pending': 0,
-          'In Progress': 0,
-          'Completed': 0,
-          'On Hold': 0
-        }
+          Pending: 0,
+          "In Progress": 0,
+          Completed: 0,
+          "On Hold": 0,
+        },
       };
 
       // Calculate total and fill in counts
-      taskStats.forEach(stat => {
+      taskStats.forEach((stat) => {
         if (stat._id in stats.statusCounts) {
-          stats.statusCounts[stat._id as keyof typeof stats.statusCounts] = stat.count;
+          stats.statusCounts[stat._id as keyof typeof stats.statusCounts] =
+            stat.count;
           stats.total += stat.count;
         }
       });
 
       // Calculate percentages
       if (stats.total > 0) {
-        Object.keys(stats.statusCounts).forEach(status => {
-          const count = stats.statusCounts[status as keyof typeof stats.statusCounts];
-          stats.statusPercentages[status as keyof typeof stats.statusPercentages] =
-            Number(((count / stats.total) * 100).toFixed(2));
+        Object.keys(stats.statusCounts).forEach((status) => {
+          const count =
+            stats.statusCounts[status as keyof typeof stats.statusCounts];
+          stats.statusPercentages[
+            status as keyof typeof stats.statusPercentages
+          ] = Number(((count / stats.total) * 100).toFixed(2));
         });
       }
 
@@ -2364,16 +2409,15 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           total: stats.total,
           byStatus: {
             counts: stats.statusCounts,
-            percentages: stats.statusPercentages
-          }
-        }
+            percentages: stats.statusPercentages,
+          },
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error retrieving project task statistics",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -2384,43 +2428,46 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const taskStats = await Task.aggregate([
         {
           $group: {
-            _id: '$status',
-            count: { $sum: 1 }
-          }
-        }
+            _id: "$status",
+            count: { $sum: 1 },
+          },
+        },
       ]);
 
       // Initialize stats object
       const stats: TaskStats = {
         total: 0,
         statusCounts: {
-          'Pending': 0,
-          'In Progress': 0,
-          'Completed': 0,
-          'On Hold': 0
+          Pending: 0,
+          "In Progress": 0,
+          Completed: 0,
+          "On Hold": 0,
         },
         statusPercentages: {
-          'Pending': 0,
-          'In Progress': 0,
-          'Completed': 0,
-          'On Hold': 0
-        }
+          Pending: 0,
+          "In Progress": 0,
+          Completed: 0,
+          "On Hold": 0,
+        },
       };
 
       // Calculate total and fill in counts
-      taskStats.forEach(stat => {
+      taskStats.forEach((stat) => {
         if (stat._id in stats.statusCounts) {
-          stats.statusCounts[stat._id as keyof typeof stats.statusCounts] = stat.count;
+          stats.statusCounts[stat._id as keyof typeof stats.statusCounts] =
+            stat.count;
           stats.total += stat.count;
         }
       });
 
       // Calculate percentages
       if (stats.total > 0) {
-        Object.keys(stats.statusCounts).forEach(status => {
-          const count = stats.statusCounts[status as keyof typeof stats.statusCounts];
-          stats.statusPercentages[status as keyof typeof stats.statusPercentages] =
-            Number(((count / stats.total) * 100).toFixed(2));
+        Object.keys(stats.statusCounts).forEach((status) => {
+          const count =
+            stats.statusCounts[status as keyof typeof stats.statusCounts];
+          stats.statusPercentages[
+            status as keyof typeof stats.statusPercentages
+          ] = Number(((count / stats.total) * 100).toFixed(2));
         });
       }
 
@@ -2430,27 +2477,21 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           total: stats.total,
           byStatus: {
             counts: stats.statusCounts,
-            percentages: stats.statusPercentages
-          }
-        }
+            percentages: stats.statusPercentages,
+          },
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         message: "Error retrieving task statistics",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
   async getAttendanceLogs(req: Request, res: Response): Promise<Response> {
     try {
-      const {
-        employee_id,
-        startDate,
-        endDate,
-        status
-      } = req.query;
+      const { employee_id, startDate, endDate, status } = req.query;
 
       const query: any = {};
 
@@ -2475,48 +2516,53 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         query.status = status;
       }
 
-      const attendanceLogs = await AttendanceLog.find(query)
-        .sort({ date: -1, punchIn: -1 });
+      const attendanceLogs = await AttendanceLog.find(query).sort({
+        date: -1,
+        punchIn: -1,
+      });
 
       // Get employee details separately if needed
-      const employeeIds = [...new Set(attendanceLogs.map(log => log.employee_id))];
-      const employees = await Employee.find({ employee_id: { $in: employeeIds } })
-        .select('employee_id firstName lastName');
+      const employeeIds = [
+        ...new Set(attendanceLogs.map((log) => log.employee_id)),
+      ];
+      const employees = await Employee.find({
+        employee_id: { $in: employeeIds },
+      }).select("employee_id firstName lastName");
 
       // Create employee lookup map
       const employeeMap = new Map(
-        employees.map(emp => [emp.employee_id, emp])
+        employees.map((emp) => [emp.employee_id, emp])
       );
 
       // Combine attendance logs with employee details
-      const enrichedLogs = attendanceLogs.map(log => ({
+      const enrichedLogs = attendanceLogs.map((log) => ({
         ...log.toObject(),
-        employeeDetails: employeeMap.get(log.employee_id.toString()) || null
+        employeeDetails: employeeMap.get(log.employee_id.toString()) || null,
       }));
 
       // Calculate summary statistics
       const summary = {
         totalRecords: enrichedLogs.length,
-        present: enrichedLogs.filter(log => log.status === 'Present').length,
-        absent: enrichedLogs.filter(log => log.status === 'Absent').length,
-        halfDay: enrichedLogs.filter(log => log.status === 'Half-Day').length,
-        averageHours: enrichedLogs.reduce((acc, log) => acc + (log.totalHours || 0), 0) / enrichedLogs.length || 0
+        present: enrichedLogs.filter((log) => log.status === "Present").length,
+        absent: enrichedLogs.filter((log) => log.status === "Absent").length,
+        halfDay: enrichedLogs.filter((log) => log.status === "Half-Day").length,
+        averageHours:
+          enrichedLogs.reduce((acc, log) => acc + (log.totalHours || 0), 0) /
+            enrichedLogs.length || 0,
       };
 
       return res.status(200).json({
         message: "Attendance logs retrieved successfully",
         summary,
-        data: enrichedLogs
+        data: enrichedLogs,
       });
-
     } catch (error) {
       return res.status(500).json({
         message: "Error retrieving attendance logs",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async updateLeaveStatus(req: Request, res: Response): Promise<Response> {
     try {
@@ -2525,14 +2571,14 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       // Validate required fields
       if (!leaveId || !status) {
         return res.status(400).json({
-          message: "Leave ID and status are required"
+          message: "Leave ID and status are required",
         });
       }
 
       // Validate status
-      if (!['Approved', 'Rejected'].includes(status)) {
+      if (!["Approved", "Rejected"].includes(status)) {
         return res.status(400).json({
-          message: "Status must be either 'Approved' or 'Rejected'"
+          message: "Status must be either 'Approved' or 'Rejected'",
         });
       }
 
@@ -2540,14 +2586,14 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const leaveRequest = await Leave.findById(leaveId);
       if (!leaveRequest) {
         return res.status(404).json({
-          message: "Leave request not found"
+          message: "Leave request not found",
         });
       }
 
       // Check if leave is already processed
-      if (leaveRequest.status !== 'Pending') {
+      if (leaveRequest.status !== "Pending") {
         return res.status(400).json({
-          message: `Leave request has already been ${leaveRequest.status.toLowerCase()}`
+          message: `Leave request has already been ${leaveRequest.status.toLowerCase()}`,
         });
       }
 
@@ -2557,29 +2603,28 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         {
           $set: {
             status,
-            ...(comments && { comments })
-          }
+            ...(comments && { comments }),
+          },
         },
         { new: true }
       );
 
       // Get employee details for response
       const employee = await Employee.findOne({
-        employee_id: leaveRequest.employee_id
-      }).select('firstName lastName employee_id');
+        employee_id: leaveRequest.employee_id,
+      }).select("firstName lastName employee_id");
 
       return res.status(200).json({
         message: `Leave request ${status.toLowerCase()} successfully`,
         data: {
           ...updatedLeave?.toObject(),
-          employeeDetails: employee
-        }
+          employeeDetails: employee,
+        },
       });
-
     } catch (error) {
       return res.status(500).json({
         message: "Error updating leave status",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -2588,10 +2633,25 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
     try {
       const clientData: IClient = req.body;
 
+      if (!clientData?.email || !clientData?.password) {
+        return res.status(400).json({
+          message: "Email and password are required",
+        });
+      }
+
+      const normalizedEmail = clientData.email.trim().toLowerCase();
+      //to avoid duplication of clients
+      const existingUser = await User.findOne({ email: normalizedEmail });
+      if (existingUser) {
+        return res.status(409).json({
+          message: "Client already exist",
+        });
+      }
+
       const hashedPassword = await bcrypt.hash(clientData.password, 10);
 
       const client = new Client({
-        email: clientData.email,
+        email: normalizedEmail,
         password: hashedPassword,
         companyName: clientData.companyName,
         contactPerson: clientData.contactPerson,
@@ -2605,21 +2665,30 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const savedClient = await client.save();
 
       return res.status(201).json({
-        message: 'Client created successfully',
+        message: "Client created successfully",
         client: savedClient,
       });
     } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: number }).code === 11000
+      ) {
+        return res.status(409).json({
+          message: "Client already exist",
+        });
+      }
       if (error instanceof Error) {
         return res.status(500).json({
           message: `Error creating client: ${error.message}`,
         });
       }
       return res.status(500).json({
-        message: 'An unknown error occurred while creating client',
+        message: "An unknown error occurred while creating client",
       });
     }
   }
-
 
   async createRoles(req: Request, res: Response): Promise<Response> {
     try {
@@ -2635,7 +2704,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const savedRole = await role.save();
 
       return res.status(201).json({
-        message: 'Role created successfully',
+        message: "Role created successfully",
         role: savedRole,
       });
     } catch (error: unknown) {
@@ -2645,18 +2714,79 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         });
       }
       return res.status(500).json({
-        message: 'An unknown error occurred while creating the role',
+        message: "An unknown error occurred while creating the role",
       });
     }
   }
 
+  async deleteRole(req: Request, res: Response): Promise<Response> {
+    try {
+      const { role_id } = req.params;
 
+      if (!role_id || !Types.ObjectId.isValid(role_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid role ID is required",
+        });
+      }
 
+      // Check if role exists
+      const role = await Role.findById(role_id);
+      if (!role) {
+        return res.status(404).json({
+          success: false,
+          message: "Role not found",
+        });
+      }
 
+      // Check if any employees are assigned to this role
+      const employeesCount = await Employee.countDocuments({
+        role_id: role_id,
+      });
+
+      if (employeesCount > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot delete role. ${employeesCount} employee(s) are currently assigned to this role`,
+        });
+      }
+
+      // Delete the role
+      const deletedRole = await Role.findByIdAndDelete(role_id);
+
+      return res.status(200).json({
+        success: true,
+        message: "Role deleted successfully",
+        data: deletedRole,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting role",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
 
   async createEmployee(req: Request, res: Response): Promise<Response> {
     try {
       const employeeData: CreateEmployeeDto = req.body;
+
+      if (!employeeData?.email || !employeeData?.password) {
+        return res.status(400).json({
+          message: "Email and password are required",
+        });
+      }
+
+      const normalizedEmail = employeeData.email.trim().toLowerCase();
+
+      // Prevent duplicate accounts across all user types
+      const existingUser = await User.findOne({ email: normalizedEmail });
+      if (existingUser) {
+        return res.status(409).json({
+          message: "An account with this email already exists",
+        });
+      }
 
       // No need to generate employee_id, it's handled by middleware
       const hashedPassword = await bcrypt.hash(employeeData.password, 10);
@@ -2665,7 +2795,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         // employee_id is not needed here, it will be auto-generated
         firstName: employeeData.firstName,
         lastName: employeeData.lastName,
-        email: employeeData.email,
+        email: normalizedEmail,
         password: hashedPassword,
         phone: employeeData.phone,
         hireDate: employeeData.hireDate,
@@ -2677,10 +2807,12 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         country: employeeData.country,
         postalcode: employeeData.postalcode,
         employeebio: employeeData.employeebio,
-        status: employeeData.status || 'Probation',
+        status: employeeData.status || "Probation",
         createdAt: new Date(),
         lastLogin: null,
-        ...(employeeData.department_id && { department_id: employeeData.department_id }),
+        ...(employeeData.department_id && {
+          department_id: employeeData.department_id,
+        }),
         ...(employeeData.role_id && { role_id: employeeData.role_id }),
       });
 
@@ -2691,6 +2823,16 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         employee: savedEmployee,
       });
     } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: number }).code === 11000
+      ) {
+        return res.status(409).json({
+          message: "An account with this email already exists",
+        });
+      }
       if (error instanceof Error) {
         return res.status(500).json({
           message: `Error creating Employee: ${error.message}`,
@@ -2702,8 +2844,6 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
     }
   }
 
-
-
   async getDailyAttendance(req: Request, res: Response): Promise<Response> {
     try {
       const today = new Date();
@@ -2713,17 +2853,16 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       return res.status(200).json({
         message: "Daily attendance retrieved successfully",
-        date: today.toISOString().split('T')[0],
-        data: dailyStats
+        date: today.toISOString().split("T")[0],
+        data: dailyStats,
       });
     } catch (error) {
       return res.status(500).json({
         message: "Error retrieving daily attendance",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async getWeeklyAttendance(req: Request, res: Response): Promise<Response> {
     try {
@@ -2732,47 +2871,53 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       startOfWeek.setDate(today.getDate() - today.getDay());
       startOfWeek.setHours(0, 0, 0, 0);
 
-      const weeklyStats = await this.getAttendanceStats(startOfWeek, new Date());
+      const weeklyStats = await this.getAttendanceStats(
+        startOfWeek,
+        new Date()
+      );
 
       return res.status(200).json({
         message: "Weekly attendance retrieved successfully",
-        startDate: startOfWeek.toISOString().split('T')[0],
-        endDate: today.toISOString().split('T')[0],
-        data: weeklyStats
+        startDate: startOfWeek.toISOString().split("T")[0],
+        endDate: today.toISOString().split("T")[0],
+        data: weeklyStats,
       });
     } catch (error) {
       return res.status(500).json({
         message: "Error retrieving weekly attendance",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
-
 
   async getMonthlyAttendance(req: Request, res: Response): Promise<Response> {
     try {
       const today = new Date();
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-      const monthlyStats = await this.getAttendanceStats(startOfMonth, new Date());
+      const monthlyStats = await this.getAttendanceStats(
+        startOfMonth,
+        new Date()
+      );
 
       return res.status(200).json({
         message: "Monthly attendance retrieved successfully",
-        startDate: startOfMonth.toISOString().split('T')[0],
-        endDate: today.toISOString().split('T')[0],
-        data: monthlyStats
+        startDate: startOfMonth.toISOString().split("T")[0],
+        endDate: today.toISOString().split("T")[0],
+        data: monthlyStats,
       });
     } catch (error) {
       return res.status(500).json({
         message: "Error retrieving monthly attendance",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-
-  private async getAttendanceStats(startDate: Date, endDate: Date): Promise<AttendanceStats> {
+  private async getAttendanceStats(
+    startDate: Date,
+    endDate: Date
+  ): Promise<AttendanceStats> {
     try {
       // Get total number of employees
       const totalEmployees = await Employee.countDocuments();
@@ -2783,16 +2928,16 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           $match: {
             date: {
               $gte: startDate,
-              $lte: endDate
-            }
-          }
+              $lte: endDate,
+            },
+          },
         },
         {
           $group: {
             _id: "$status",
-            count: { $sum: 1 }
-          }
-        }
+            count: { $sum: 1 },
+          },
+        },
       ]);
 
       const stats = {
@@ -2802,16 +2947,15 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         presentPercentage: 0,
         absentPercentage: 0,
         halfDayPercentage: 0,
-        totalEmployees
+        totalEmployees,
       };
 
-
-      attendanceCounts.forEach(item => {
+      attendanceCounts.forEach((item) => {
         switch (item._id) {
-          case 'Present':
+          case "Present":
             stats.present = item.count;
             break;
-          case 'Half-Day':
+          case "Half-Day":
             stats.halfDay = item.count;
             break;
         }
@@ -2824,25 +2968,19 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       stats.absent = Math.max(0, stats.absent);
 
       // Calculate percentages
-      stats.presentPercentage = totalEmployees > 0 ? (stats.present / totalEmployees) * 100 : 0;
-      stats.halfDayPercentage = totalEmployees > 0 ? (stats.halfDay / totalEmployees) * 100 : 0;
-      stats.absentPercentage = totalEmployees > 0 ? (stats.absent / totalEmployees) * 100 : 0;
+      stats.presentPercentage =
+        totalEmployees > 0 ? (stats.present / totalEmployees) * 100 : 0;
+      stats.halfDayPercentage =
+        totalEmployees > 0 ? (stats.halfDay / totalEmployees) * 100 : 0;
+      stats.absentPercentage =
+        totalEmployees > 0 ? (stats.absent / totalEmployees) * 100 : 0;
 
       return stats;
-
     } catch (error) {
-      console.error('Error calculating attendance stats:', error);
+      console.error("Error calculating attendance stats:", error);
       throw error;
     }
   }
-
-
-
-
-
-
-
-
 
   async getEmployeeStatusCount(req: Request, res: Response): Promise<Response> {
     try {
@@ -2850,9 +2988,9 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         {
           $group: {
             _id: "$status",
-            count: { $sum: 1 }
-          }
-        }
+            count: { $sum: 1 },
+          },
+        },
       ]);
 
       const total = counts.reduce((sum, item) => sum + item.count, 0);
@@ -2860,15 +2998,14 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       // Initialize status counts with proper typing
       const statusCounts: StatusCounts = {
         total,
-        'Full-Time': 0,
-        'Contract': 0,
-        'Probation': 0,
-        'WFH': 0
+        "Full-Time": 0,
+        Contract: 0,
+        Probation: 0,
+        WFH: 0,
       };
 
-
       // Fill in actual counts with type checking
-      counts.forEach(item => {
+      counts.forEach((item) => {
         const status = item._id as StatusType;
         if (status in statusCounts) {
           statusCounts[status] = item.count;
@@ -2878,40 +3015,37 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       return res.status(200).json({
         success: true,
         message: "Employee status counts retrieved successfully",
-        data: statusCounts
+        data: statusCounts,
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error retrieving employee counts",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
-
-
-
 
   async createDepartment(req: Request, res: Response) {
     try {
       const departmentData: IDepartment = req.body;
 
-
       if (departmentData.manager_id) {
-        const managerExists = await Employee.findById(departmentData.manager_id);
+        const managerExists = await Employee.findById(
+          departmentData.manager_id
+        );
         if (!managerExists) {
           throw new Error("Invalid manager_id. Employee does not exist.");
         }
       }
 
-
       const department = new Department({
         name: departmentData.name,
         description: departmentData.description,
         created_at: new Date(),
-        ...(departmentData.manager_id && { manager_id: departmentData.manager_id }),
+        ...(departmentData.manager_id && {
+          manager_id: departmentData.manager_id,
+        }),
       });
 
       const savedDepartment = await department.save();
@@ -2934,7 +3068,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       if (!id || !Types.ObjectId.isValid(id)) {
         return res.status(400).json({
-          message: 'Valid department ID is required'
+          message: "Valid department ID is required",
         });
       }
 
@@ -2942,18 +3076,21 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const department = await Department.findById(id);
       if (!department) {
         return res.status(404).json({
-          message: `Department with ID ${id} not found`
+          message: `Department with ID ${id} not found`,
         });
       }
 
       // Check if there are employees assigned to this department
-      const employeesCount = await Employee.countDocuments({ department_id: id });
+      const employeesCount = await Employee.countDocuments({
+        department_id: id,
+      });
 
       if (employeesCount > 0) {
         return res.status(400).json({
-          message: 'Cannot delete department with assigned employees',
+          message: "Cannot delete department with assigned employees",
           employeesCount: employeesCount,
-          solution: 'Reassign all employees to other departments before deletion'
+          solution:
+            "Reassign all employees to other departments before deletion",
         });
       }
 
@@ -2961,44 +3098,46 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const deletedDepartment = await Department.findByIdAndDelete(id);
 
       return res.status(200).json({
-        message: 'Department deleted successfully',
-        department: deletedDepartment
+        message: "Department deleted successfully",
+        department: deletedDepartment,
       });
-
     } catch (error) {
       return res.status(500).json({
-        message: 'Error deleting department',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Error deleting department",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async listClients(req: Request, res: Response): Promise<Response> {
     try {
       const clients = await Client.find().lean();
 
-      const settledResults = await Promise.allSettled(clients?.map(async (client, index) => {
-        const query: any = { client: new Types.ObjectId(client._id) };
-        const projects = await Project.find(query).lean()
-        const altProjects = projects?.map(p => ({
-          name: p?.projectName,
-          progress: p?.status === 'Completed' ? 100
-            : p?.status === 'In Progress' ? 50
-              : 0
-        }));
+      const settledResults = await Promise.allSettled(
+        clients?.map(async (client, index) => {
+          const query: any = { client: new Types.ObjectId(client._id) };
+          const projects = await Project.find(query).lean();
+          const altProjects = projects?.map((p) => ({
+            name: p?.projectName,
+            progress:
+              p?.status === "Completed"
+                ? 100
+                : p?.status === "In Progress"
+                ? 50
+                : 0,
+          }));
 
-        return { ...client, projects: altProjects };
-      })
-      )
+          return { ...client, projects: altProjects };
+        })
+      );
 
       const result = settledResults
-        .filter(r => r.status === 'fulfilled')
-        .map((r: any) => r.value)
+        .filter((r) => r.status === "fulfilled")
+        .map((r: any) => r.value);
 
       return res.status(200).json({
         message: "clients retrieved successfully",
-        data: result
+        data: result,
       });
     } catch (error) {
       return res.status(500).json({
@@ -3008,14 +3147,13 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
     }
   }
 
-
   async listProjects(req: Request, res: Response): Promise<Response> {
     try {
       const projects = await Project.find();
 
       return res.status(200).json({
         message: "clients retrieved successfully",
-        data: projects
+        data: projects,
       });
     } catch (error) {
       return res.status(500).json({
@@ -3031,7 +3169,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       return res.status(200).json({
         message: "clients retrieved successfully",
-        data: roles
+        data: roles,
       });
     } catch (error) {
       return res.status(500).json({
@@ -3041,16 +3179,9 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
     }
   }
 
-
   async getAllLeaves(req: Request, res: Response): Promise<Response> {
     try {
-      const {
-        employee_id,
-        status,
-        fromDate,
-        toDate,
-        leaveType
-      } = req.query;
+      const { employee_id, status, fromDate, toDate, leaveType } = req.query;
 
       const query: any = {};
 
@@ -3061,9 +3192,9 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Filter by status if provided
       if (status) {
-        if (!['Pending', 'Approved', 'Rejected'].includes(status as string)) {
+        if (!["Pending", "Approved", "Rejected"].includes(status as string)) {
           return res.status(400).json({
-            message: "Invalid status. Must be Pending, Approved, or Rejected"
+            message: "Invalid status. Must be Pending, Approved, or Rejected",
           });
         }
         query.status = status;
@@ -3073,7 +3204,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (leaveType) {
         if (!Object.values(LeaveType).includes(leaveType as LeaveType)) {
           return res.status(400).json({
-            message: "Invalid leave type"
+            message: "Invalid leave type",
           });
         }
         query.leaveType = leaveType;
@@ -3085,63 +3216,72 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           {
             fromDate: {
               ...(fromDate && { $gte: new Date(fromDate as string) }),
-              ...(toDate && { $lte: new Date(toDate as string) })
-            }
+              ...(toDate && { $lte: new Date(toDate as string) }),
+            },
           },
           {
             toDate: {
               ...(fromDate && { $gte: new Date(fromDate as string) }),
-              ...(toDate && { $lte: new Date(toDate as string) })
-            }
-          }
+              ...(toDate && { $lte: new Date(toDate as string) }),
+            },
+          },
         ];
       }
 
-      const leaves = await Leave.find(query)
-        .sort({ createdAt: -1 });
+      const leaves = await Leave.find(query).sort({ createdAt: -1 });
 
       // Get unique employee IDs
-      const employeeIds = [...new Set(leaves.map(leave => leave.employee_id))];
+      const employeeIds = [
+        ...new Set(leaves.map((leave) => leave.employee_id)),
+      ];
 
       // Get employee details
       const employees = await Employee.find({
-        employee_id: { $in: employeeIds }
-      }).select('employee_id firstName lastName');
+        employee_id: { $in: employeeIds },
+      }).select("employee_id firstName lastName");
 
       // Create employee lookup map
       const employeeMap = new Map(
-        employees.map(emp => [emp.employee_id.toString(), emp])
+        employees.map((emp) => [emp.employee_id.toString(), emp])
       );
 
       // Combine leave data with employee details
-      const enrichedLeaves = leaves.map(leave => ({
+      const enrichedLeaves = leaves.map((leave) => ({
         ...leave.toObject(),
-        employeeDetails: employeeMap.get(leave.employee_id.toString()) || null
+        employeeDetails: employeeMap.get(leave.employee_id.toString()) || null,
       }));
 
       // Calculate summary
       const summary = {
         totalRequests: enrichedLeaves.length,
-        pending: enrichedLeaves.filter(leave => leave.status === 'Pending').length,
-        approved: enrichedLeaves.filter(leave => leave.status === 'Approved').length,
-        rejected: enrichedLeaves.filter(leave => leave.status === 'Rejected').length,
+        pending: enrichedLeaves.filter((leave) => leave.status === "Pending")
+          .length,
+        approved: enrichedLeaves.filter((leave) => leave.status === "Approved")
+          .length,
+        rejected: enrichedLeaves.filter((leave) => leave.status === "Rejected")
+          .length,
         byType: {
-          medical: enrichedLeaves.filter(leave => leave.leaveType === LeaveType.MEDICAL).length,
-          casual: enrichedLeaves.filter(leave => leave.leaveType === LeaveType.CASUAL).length,
-          vacation: enrichedLeaves.filter(leave => leave.leaveType === LeaveType.VACATION).length
-        }
+          medical: enrichedLeaves.filter(
+            (leave) => leave.leaveType === LeaveType.MEDICAL
+          ).length,
+          casual: enrichedLeaves.filter(
+            (leave) => leave.leaveType === LeaveType.CASUAL
+          ).length,
+          vacation: enrichedLeaves.filter(
+            (leave) => leave.leaveType === LeaveType.VACATION
+          ).length,
+        },
       };
 
       return res.status(200).json({
         message: "Leave requests retrieved successfully",
         summary,
-        data: enrichedLeaves
+        data: enrichedLeaves,
       });
-
     } catch (error) {
       return res.status(500).json({
         message: "Error retrieving leave requests",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -3155,10 +3295,14 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Filter by status if provided
       if (status) {
-        if (!['Pending', 'In Progress', 'Resolved', 'Closed'].includes(status as string)) {
+        if (
+          !["Pending", "In Progress", "Resolved", "Closed"].includes(
+            status as string
+          )
+        ) {
           return res.status(400).json({
             success: false,
-            message: "Invalid status value"
+            message: "Invalid status value",
           });
         }
         query.status = status;
@@ -3166,10 +3310,10 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Filter by priority if provided
       if (priority) {
-        if (!['Low', 'Medium', 'High'].includes(priority as string)) {
+        if (!["Low", "Medium", "High"].includes(priority as string)) {
           return res.status(400).json({
             success: false,
-            message: "Invalid priority value"
+            message: "Invalid priority value",
           });
         }
         query.priority = priority;
@@ -3187,45 +3331,48 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       const tickets = await Ticket.find(query)
         .sort({ createdAt: -1 })
-        .populate('client_id', 'companyName contactPerson email')
-        .populate('assignedTo', 'firstName lastName employee_id')
+        .populate("client_id", "companyName contactPerson email")
+        .populate("assignedTo", "firstName lastName employee_id")
         .lean();
 
       // Calculate statistics
       const summary = {
         total: tickets.length,
-        pending: tickets.filter(ticket => ticket.status === 'Pending').length,
-        inProgress: tickets.filter(ticket => ticket.status === 'In Progress').length,
-        resolved: tickets.filter(ticket => ticket.status === 'Resolved').length,
-        closed: tickets.filter(ticket => ticket.status === 'Closed').length,
-        highPriority: tickets.filter(ticket => ticket.priority === 'High').length
+        pending: tickets.filter((ticket) => ticket.status === "Pending").length,
+        inProgress: tickets.filter((ticket) => ticket.status === "In Progress")
+          .length,
+        resolved: tickets.filter((ticket) => ticket.status === "Resolved")
+          .length,
+        closed: tickets.filter((ticket) => ticket.status === "Closed").length,
+        highPriority: tickets.filter((ticket) => ticket.priority === "High")
+          .length,
       };
 
       return res.status(200).json({
         success: true,
         message: "Tickets retrieved successfully",
         summary,
-        tickets
+        tickets,
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error retrieving tickets",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
   async updateTicket(req: Request, res: Response): Promise<Response> {
     try {
-      const { id, ticketCode, status, priority, assignedTo, comments } = req.body;
+      const { id, ticketCode, status, priority, assignedTo, comments } =
+        req.body;
 
       // Validate we have either id or ticketCode
       if (!id && !ticketCode) {
         return res.status(400).json({
           success: false,
-          message: "Either ticket ID or ticketCode is required"
+          message: "Either ticket ID or ticketCode is required",
         });
       }
 
@@ -3240,7 +3387,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!ticket) {
         return res.status(404).json({
           success: false,
-          message: "Ticket not found"
+          message: "Ticket not found",
         });
       }
 
@@ -3249,10 +3396,12 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Update status if provided
       if (status) {
-        if (!['Pending', 'In Progress', 'Resolved', 'Closed'].includes(status)) {
+        if (
+          !["Pending", "In Progress", "Resolved", "Closed"].includes(status)
+        ) {
           return res.status(400).json({
             success: false,
-            message: "Invalid status value"
+            message: "Invalid status value",
           });
         }
         updateData.status = status;
@@ -3260,10 +3409,10 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Update priority if provided
       if (priority) {
-        if (!['Low', 'Medium', 'High'].includes(priority)) {
+        if (!["Low", "Medium", "High"].includes(priority)) {
           return res.status(400).json({
             success: false,
-            message: "Invalid priority value"
+            message: "Invalid priority value",
           });
         }
         updateData.priority = priority;
@@ -3274,7 +3423,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (!Types.ObjectId.isValid(assignedTo)) {
           return res.status(400).json({
             success: false,
-            message: "Invalid employee ID for assignment"
+            message: "Invalid employee ID for assignment",
           });
         }
 
@@ -3283,7 +3432,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (!employee) {
           return res.status(404).json({
             success: false,
-            message: "Employee not found for assignment"
+            message: "Employee not found for assignment",
           });
         }
 
@@ -3297,7 +3446,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         ticket.comments.push({
           text: comments,
           createdBy: new Types.ObjectId(req.body.adminId), // Assuming the admin ID is sent in the request
-          createdAt: new Date()
+          createdAt: new Date(),
         });
       }
 
@@ -3309,21 +3458,20 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Get populated data for response
       const populatedTicket = await Ticket.findById(updatedTicket._id)
-        .populate('client_id', 'companyName contactPerson email')
-        .populate('assignedTo', 'firstName lastName employee_id')
+        .populate("client_id", "companyName contactPerson email")
+        .populate("assignedTo", "firstName lastName employee_id")
         .lean();
 
       return res.status(200).json({
         success: true,
         message: "Ticket updated successfully",
-        ticket: populatedTicket
+        ticket: populatedTicket,
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error updating ticket",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -3336,7 +3484,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!id && !ticketCode) {
         return res.status(400).json({
           success: false,
-          message: "Either ticket ID or ticketCode is required"
+          message: "Either ticket ID or ticketCode is required",
         });
       }
 
@@ -3351,7 +3499,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!ticket) {
         return res.status(404).json({
           success: false,
-          message: "Ticket not found"
+          message: "Ticket not found",
         });
       }
 
@@ -3360,14 +3508,13 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       return res.status(200).json({
         success: true,
-        message: `Ticket ${ticketCode || id} deleted successfully`
+        message: `Ticket ${ticketCode || id} deleted successfully`,
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error deleting ticket",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -3380,7 +3527,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
 
@@ -3391,14 +3538,14 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if ((!ticketId || !Types.ObjectId.isValid(ticketId)) && !ticketCode) {
         return res.status(400).json({
           success: false,
-          message: "Either valid ticket ID or ticket code is required"
+          message: "Either valid ticket ID or ticket code is required",
         });
       }
 
       if (!comment || !comment.trim()) {
         return res.status(400).json({
           success: false,
-          message: "Comment text is required"
+          message: "Comment text is required",
         });
       }
 
@@ -3413,7 +3560,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!ticket) {
         return res.status(404).json({
           success: false,
-          message: "Ticket not found"
+          message: "Ticket not found",
         });
       }
 
@@ -3422,7 +3569,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const newComment = {
         text: comment,
         createdBy: new Types.ObjectId(adminId),
-        createdAt: new Date()
+        createdAt: new Date(),
       };
 
       ticket.comments.push(newComment);
@@ -3441,20 +3588,18 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           text: comment,
           createdAt: newComment.createdAt,
           authorName: "Admin",
-          commentCount: ticket.comments.length
-        }
+          commentCount: ticket.comments.length,
+        },
       });
-
     } catch (error) {
-      console.error('Error adding ticket comment:', error);
+      console.error("Error adding ticket comment:", error);
       return res.status(500).json({
         success: false,
         message: "Error adding comment to ticket",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async getTicketDetails(req: Request, res: Response): Promise<Response> {
     try {
@@ -3464,25 +3609,25 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       let ticket;
       if (id && Types.ObjectId.isValid(id)) {
         ticket = await Ticket.findById(id)
-          .populate('client_id', 'companyName contactPerson email')
-          .populate('assignedTo', 'firstName lastName employee_id')
+          .populate("client_id", "companyName contactPerson email")
+          .populate("assignedTo", "firstName lastName employee_id")
           .lean();
       } else if (ticketCode) {
         ticket = await Ticket.findOne({ ticketCode })
-          .populate('client_id', 'companyName contactPerson email')
-          .populate('assignedTo', 'firstName lastName employee_id')
+          .populate("client_id", "companyName contactPerson email")
+          .populate("assignedTo", "firstName lastName employee_id")
           .lean();
       } else {
         return res.status(400).json({
           success: false,
-          message: "Either ticket ID or ticketCode is required"
+          message: "Either ticket ID or ticketCode is required",
         });
       }
 
       if (!ticket) {
         return res.status(404).json({
           success: false,
-          message: "Ticket not found"
+          message: "Ticket not found",
         });
       }
 
@@ -3496,30 +3641,46 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
             clientResolved: ticket.clientResolved || false,
             clientResolvedAt: ticket.clientResolvedAt,
             comments: [],
-            commentCount: 0
-          }
+            commentCount: 0,
+          },
         });
       }
 
-      const commentUserIds = [...new Set(ticket.comments.map(comment => comment.createdBy.toString()))];
+      const commentUserIds = [
+        ...new Set(
+          ticket.comments.map((comment) => comment.createdBy.toString())
+        ),
+      ];
 
       const [admins, employees, clients] = await Promise.all([
-        Admin.find({ _id: { $in: commentUserIds } }).select('_id'),
-        Employee.find({ _id: { $in: commentUserIds } }).select('_id firstName lastName'),
-        Client.find({ _id: { $in: commentUserIds } }).select('_id companyName contactPerson')
+        Admin.find({ _id: { $in: commentUserIds } }).select("_id"),
+        Employee.find({ _id: { $in: commentUserIds } }).select(
+          "_id firstName lastName"
+        ),
+        Client.find({ _id: { $in: commentUserIds } }).select(
+          "_id companyName contactPerson"
+        ),
       ]);
 
-      const adminMap = new Map(admins.map(admin => [admin._id.toString(), "Admin"]));
+      const adminMap = new Map(
+        admins.map((admin) => [admin._id.toString(), "Admin"])
+      );
       const employeeMap = new Map(
-        employees.map(emp => [emp._id.toString(), `${emp.firstName} ${emp.lastName}`])
+        employees.map((emp) => [
+          emp._id.toString(),
+          `${emp.firstName} ${emp.lastName}`,
+        ])
       );
       const clientMap = new Map(
-        clients.map(client => [client._id.toString(), client.contactPerson || client.companyName])
+        clients.map((client) => [
+          client._id.toString(),
+          client.contactPerson || client.companyName,
+        ])
       );
 
-      const enrichedComments = ticket.comments.map(comment => {
+      const enrichedComments = ticket.comments.map((comment) => {
         const userId = comment.createdBy.toString();
-        let authorName = 'Unknown User';
+        let authorName = "Unknown User";
 
         if (adminMap.has(userId)) {
           authorName = "Admin";
@@ -3533,12 +3694,13 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           id: comment._id,
           text: comment.text,
           createdAt: comment.createdAt,
-          authorName
+          authorName,
         };
       });
 
-      enrichedComments.sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      enrichedComments.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
 
       return res.status(200).json({
@@ -3549,16 +3711,15 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           clientResolved: ticket.clientResolved || false,
           clientResolvedAt: ticket.clientResolvedAt,
           comments: enrichedComments,
-          commentCount: enrichedComments.length
-        }
+          commentCount: enrichedComments.length,
+        },
       });
-
     } catch (error) {
-      console.error('Error retrieving ticket details:', error);
+      console.error("Error retrieving ticket details:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving ticket details",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -3568,7 +3729,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
-          message: "Unauthorized: Admin ID is missing"
+          message: "Unauthorized: Admin ID is missing",
         });
       }
 
@@ -3576,10 +3737,14 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       const invoiceData: CreateInvoiceDto = req.body;
 
       // Validate required fields
-      if (!invoiceData.client_id || !invoiceData.amount || !invoiceData.dueDate) {
+      if (
+        !invoiceData.client_id ||
+        !invoiceData.amount ||
+        !invoiceData.dueDate
+      ) {
         return res.status(400).json({
           success: false,
-          message: "Client ID, amount, and due date are required"
+          message: "Client ID, amount, and due date are required",
         });
       }
 
@@ -3587,7 +3752,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!Types.ObjectId.isValid(invoiceData.client_id)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid client ID format"
+          message: "Invalid client ID format",
         });
       }
 
@@ -3595,7 +3760,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!client) {
         return res.status(400).json({
           success: false,
-          message: "Client not found"
+          message: "Client not found",
         });
       }
 
@@ -3604,7 +3769,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (!Types.ObjectId.isValid(invoiceData.project_id)) {
           return res.status(400).json({
             success: false,
-            message: "Invalid project ID format"
+            message: "Invalid project ID format",
           });
         }
 
@@ -3612,7 +3777,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (!project) {
           return res.status(400).json({
             success: false,
-            message: "Project not found"
+            message: "Project not found",
           });
         }
       }
@@ -3620,35 +3785,39 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       // Create invoice - will auto-generate invoice_id
       const invoice = new Invoice({
         client_id: new Types.ObjectId(invoiceData.client_id),
-        project_id: invoiceData.project_id ? new Types.ObjectId(invoiceData.project_id) : undefined,
+        project_id: invoiceData.project_id
+          ? new Types.ObjectId(invoiceData.project_id)
+          : undefined,
         amount: invoiceData.amount,
         description: invoiceData.description,
         invoiceDate: invoiceData.invoiceDate || new Date(),
         dueDate: new Date(invoiceData.dueDate),
-        status: 'Pending',
-        createdBy: new Types.ObjectId(adminId)
+        status: "Pending",
+        createdBy: new Types.ObjectId(adminId),
       });
 
       const savedInvoice = await invoice.save();
 
       // Populate for response
-      await savedInvoice.populate('client_id', 'companyName contactPerson email');
+      await savedInvoice.populate(
+        "client_id",
+        "companyName contactPerson email"
+      );
       if (savedInvoice.project_id) {
-        await savedInvoice.populate('project_id', 'projectName');
+        await savedInvoice.populate("project_id", "projectName");
       }
 
       return res.status(201).json({
         success: true,
         message: "Invoice created successfully",
-        data: savedInvoice
+        data: savedInvoice,
       });
-
     } catch (error) {
-      console.error('Error creating invoice:', error);
+      console.error("Error creating invoice:", error);
       return res.status(500).json({
         success: false,
         message: "Error creating invoice",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -3661,7 +3830,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!updateData.id && !updateData.invoice_id) {
         return res.status(400).json({
           success: false,
-          message: "Either id or invoice_id is required"
+          message: "Either id or invoice_id is required",
         });
       }
 
@@ -3676,7 +3845,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!invoice) {
         return res.status(404).json({
           success: false,
-          message: "Invoice not found"
+          message: "Invoice not found",
         });
       }
 
@@ -3688,7 +3857,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (updateData.amount <= 0) {
           return res.status(400).json({
             success: false,
-            message: "Amount must be greater than zero"
+            message: "Amount must be greater than zero",
           });
         }
         updates.amount = updateData.amount;
@@ -3706,17 +3875,17 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Update status if provided
       if (updateData.status) {
-        if (!['Pending', 'Paid', 'Overdue'].includes(updateData.status)) {
+        if (!["Pending", "Paid", "Overdue"].includes(updateData.status)) {
           return res.status(400).json({
             success: false,
-            message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'"
+            message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'",
           });
         }
 
         updates.status = updateData.status;
 
         // If status is changed to Paid, set payment date
-        if (updateData.status === 'Paid' && !invoice.paymentDate) {
+        if (updateData.status === "Paid" && !invoice.paymentDate) {
           updates.paymentDate = updateData.paymentDate || new Date();
         }
       }
@@ -3727,22 +3896,21 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         { $set: updates },
         { new: true, runValidators: true }
       )
-        .populate('client_id', 'companyName contactPerson email')
-        .populate('project_id', 'projectName')
-        .populate('createdBy', 'username');
+        .populate("client_id", "companyName contactPerson email")
+        .populate("project_id", "projectName")
+        .populate("createdBy", "username");
 
       return res.status(200).json({
         success: true,
         message: "Invoice updated successfully",
-        data: updatedInvoice
+        data: updatedInvoice,
       });
-
     } catch (error) {
-      console.error('Error updating invoice:', error);
+      console.error("Error updating invoice:", error);
       return res.status(500).json({
         success: false,
         message: "Error updating invoice",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -3755,7 +3923,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!invoiceData.id && !invoiceData.invoice_id) {
         return res.status(400).json({
           success: false,
-          message: "Either id or invoice_id is required"
+          message: "Either id or invoice_id is required",
         });
       }
 
@@ -3770,29 +3938,28 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!invoice) {
         return res.status(404).json({
           success: false,
-          message: "Invoice not found"
+          message: "Invoice not found",
         });
       }
 
       // Populate references
-      await invoice.populate('client_id', 'companyName contactPerson email');
+      await invoice.populate("client_id", "companyName contactPerson email");
       if (invoice.project_id) {
-        await invoice.populate('project_id', 'projectName');
+        await invoice.populate("project_id", "projectName");
       }
-      await invoice.populate('createdBy', 'username');
+      await invoice.populate("createdBy", "username");
 
       return res.status(200).json({
         success: true,
         message: "Invoice retrieved successfully",
-        data: invoice
+        data: invoice,
       });
-
     } catch (error) {
-      console.error('Error retrieving invoice:', error);
+      console.error("Error retrieving invoice:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving invoice",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -3811,10 +3978,10 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Filter by status if provided
       if (status) {
-        if (!['Pending', 'Paid', 'Overdue'].includes(status as string)) {
+        if (!["Pending", "Paid", "Overdue"].includes(status as string)) {
           return res.status(400).json({
             success: false,
-            message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'"
+            message: "Invalid status. Must be 'Pending', 'Paid', or 'Overdue'",
           });
         }
         query.status = status;
@@ -3834,46 +4001,50 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       // Get invoices
       const invoices = await Invoice.find(query)
         .sort({ invoiceDate: -1 })
-        .populate('client_id', 'companyName contactPerson')
-        .populate('project_id', 'projectName')
-        .populate('createdBy', 'username');
+        .populate("client_id", "companyName contactPerson")
+        .populate("project_id", "projectName")
+        .populate("createdBy", "username");
 
       // Statistics
-      const totalAmount = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+      const totalAmount = invoices.reduce(
+        (sum, invoice) => sum + invoice.amount,
+        0
+      );
       const paidAmount = invoices
-        .filter(invoice => invoice.status === 'Paid')
+        .filter((invoice) => invoice.status === "Paid")
         .reduce((sum, invoice) => sum + invoice.amount, 0);
       const pendingAmount = invoices
-        .filter(invoice => invoice.status === 'Pending')
+        .filter((invoice) => invoice.status === "Pending")
         .reduce((sum, invoice) => sum + invoice.amount, 0);
       const overdueAmount = invoices
-        .filter(invoice => invoice.status === 'Overdue')
+        .filter((invoice) => invoice.status === "Overdue")
         .reduce((sum, invoice) => sum + invoice.amount, 0);
 
       const summary = {
         total: invoices.length,
         totalAmount,
-        pending: invoices.filter(invoice => invoice.status === 'Pending').length,
+        pending: invoices.filter((invoice) => invoice.status === "Pending")
+          .length,
         pendingAmount,
-        paid: invoices.filter(invoice => invoice.status === 'Paid').length,
+        paid: invoices.filter((invoice) => invoice.status === "Paid").length,
         paidAmount,
-        overdue: invoices.filter(invoice => invoice.status === 'Overdue').length,
-        overdueAmount
+        overdue: invoices.filter((invoice) => invoice.status === "Overdue")
+          .length,
+        overdueAmount,
       };
 
       return res.status(200).json({
         success: true,
         message: "Invoices retrieved successfully",
         summary,
-        data: invoices
+        data: invoices,
       });
-
     } catch (error) {
-      console.error('Error retrieving invoices:', error);
+      console.error("Error retrieving invoices:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving invoices",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -3886,7 +4057,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!invoiceData.id && !invoiceData.invoice_id) {
         return res.status(400).json({
           success: false,
-          message: "Either id or invoice_id is required"
+          message: "Either id or invoice_id is required",
         });
       }
 
@@ -3901,15 +4072,15 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!invoice) {
         return res.status(404).json({
           success: false,
-          message: "Invoice not found"
+          message: "Invoice not found",
         });
       }
 
       // Don't allow deletion of paid invoices
-      if (invoice.status === 'Paid') {
+      if (invoice.status === "Paid") {
         return res.status(400).json({
           success: false,
-          message: "Paid invoices cannot be deleted"
+          message: "Paid invoices cannot be deleted",
         });
       }
 
@@ -3918,15 +4089,14 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       return res.status(200).json({
         success: true,
-        message: "Invoice deleted successfully"
+        message: "Invoice deleted successfully",
       });
-
     } catch (error) {
-      console.error('Error deleting invoice:', error);
+      console.error("Error deleting invoice:", error);
       return res.status(500).json({
         success: false,
         message: "Error deleting invoice",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -3942,7 +4112,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!ticketId || !Types.ObjectId.isValid(ticketId)) {
         return res.status(400).json({
           success: false,
-          message: "Valid ticket ID is required"
+          message: "Valid ticket ID is required",
         });
       }
 
@@ -3962,15 +4132,23 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Fetch the ticket with necessary fields with proper type annotations
       const ticket = await Ticket.findById(ticketId)
-        .populate<{ client_id: PopulatedClient }>('client_id', 'companyName contactPerson')
-        .populate<{ assignedTo: PopulatedEmployee }>('assignedTo', 'firstName lastName employee_id')
-        .select('ticketCode title status priority createdAt clientResolved clientResolvedAt comments')
+        .populate<{ client_id: PopulatedClient }>(
+          "client_id",
+          "companyName contactPerson"
+        )
+        .populate<{ assignedTo: PopulatedEmployee }>(
+          "assignedTo",
+          "firstName lastName employee_id"
+        )
+        .select(
+          "ticketCode title status priority createdAt clientResolved clientResolvedAt comments"
+        )
         .lean();
 
       if (!ticket) {
         return res.status(404).json({
           success: false,
-          message: "Ticket not found"
+          message: "Ticket not found",
         });
       }
 
@@ -3978,7 +4156,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       interface TimelineBaseData {
         ticketCode: string;
         title: string;
-        priority: 'Low' | 'Medium' | 'High';
+        priority: "Low" | "Medium" | "High";
         client: string | { name: string };
       }
 
@@ -4008,122 +4186,173 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Type for the timeline events
       type TimelineEvent =
-        | { type: 'creation'; title: string; date: Date; data: TimelineBaseData }
-        | { type: 'assignment'; title: string; date: Date; data: TimelineAssignmentData }
-        | { type: 'client_resolution'; title: string; date: Date; data: TimelineResolutionData }
-        | { type: 'resolution'; title: string; date: Date; data: TimelineStatusData }
-        | { type: 'comments'; title: string; date: Date; data: TimelineCommentData };
+        | {
+            type: "creation";
+            title: string;
+            date: Date;
+            data: TimelineBaseData;
+          }
+        | {
+            type: "assignment";
+            title: string;
+            date: Date;
+            data: TimelineAssignmentData;
+          }
+        | {
+            type: "client_resolution";
+            title: string;
+            date: Date;
+            data: TimelineResolutionData;
+          }
+        | {
+            type: "resolution";
+            title: string;
+            date: Date;
+            data: TimelineStatusData;
+          }
+        | {
+            type: "comments";
+            title: string;
+            date: Date;
+            data: TimelineCommentData;
+          };
 
       // Initialize timeline array with proper typing
       const timeline: TimelineEvent[] = [];
 
       // 1. Generate base timeline data
       timeline.push({
-        type: 'creation',
-        title: 'Ticket Created',
+        type: "creation",
+        title: "Ticket Created",
         date: ticket.createdAt,
         data: {
           ticketCode: ticket.ticketCode,
           title: ticket.title,
           priority: ticket.priority,
-          client: ticket.client_id ? {
-            name: ticket.client_id.companyName || ticket.client_id.contactPerson || 'Unknown',
-          } : 'Unknown Client'
-        }
+          client: ticket.client_id
+            ? {
+                name:
+                  ticket.client_id.companyName ||
+                  ticket.client_id.contactPerson ||
+                  "Unknown",
+              }
+            : "Unknown Client",
+        },
       });
 
       // 2. Add assignment event if available
       if (ticket.assignedTo) {
         timeline.push({
-          type: 'assignment',
-          title: 'Ticket Assigned',
+          type: "assignment",
+          title: "Ticket Assigned",
           date: ticket.createdAt, // No specific assignment date in schema, using creation date
           data: {
             assignee: {
               name: `${ticket.assignedTo.firstName} ${ticket.assignedTo.lastName}`,
-              employee_id: ticket.assignedTo.employee_id
-            }
-          }
+              employee_id: ticket.assignedTo.employee_id,
+            },
+          },
         });
       }
 
       // 3. Add client resolution event if it exists
       if (ticket.clientResolved && ticket.clientResolvedAt) {
         timeline.push({
-          type: 'client_resolution',
-          title: 'Marked as Resolved by Client',
+          type: "client_resolution",
+          title: "Marked as Resolved by Client",
           date: ticket.clientResolvedAt,
           data: {
-            resolvedByClient: true
-          }
+            resolvedByClient: true,
+          },
         });
       }
 
       // 4. Add status resolution event if applicable
-      if (ticket.status === 'Resolved' || ticket.status === 'Closed') {
+      if (ticket.status === "Resolved" || ticket.status === "Closed") {
         // For this event, we need to find the most recent status update comment
         // or use current date if no such comment exists
-        const statusUpdateComment = ticket.comments?.find(comment =>
-          comment.text.includes('Status updated to "Resolved"') ||
-          comment.text.includes('Status updated to "Closed"')
+        const statusUpdateComment = ticket.comments?.find(
+          (comment) =>
+            comment.text.includes('Status updated to "Resolved"') ||
+            comment.text.includes('Status updated to "Closed"')
         );
 
         timeline.push({
-          type: 'resolution',
+          type: "resolution",
           title: `Ticket ${ticket.status}`,
           date: statusUpdateComment?.createdAt || new Date(),
           data: {
-            status: ticket.status
-          }
+            status: ticket.status,
+          },
         });
       }
 
       // 5. Get comments info
       const totalComments = ticket.comments?.length || 0;
-      const latestComment = ticket.comments && ticket.comments.length > 0
-        ? [...ticket.comments].sort((a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )[0]
-        : null;
+      const latestComment =
+        ticket.comments && ticket.comments.length > 0
+          ? [...ticket.comments].sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime()
+            )[0]
+          : null;
 
       // Get author info for latest comment if exists
-      let latestCommentAuthor: string = 'Unknown';
+      let latestCommentAuthor: string = "Unknown";
       if (latestComment) {
         // Find the author from the appropriate collection
         const [admin, employee, client] = await Promise.all([
-          Admin.findById(latestComment.createdBy).select('_id').lean(),
-          Employee.findById(latestComment.createdBy).select('firstName lastName').lean(),
-          Client.findById(latestComment.createdBy).select('companyName contactPerson').lean()
+          Admin.findById(latestComment.createdBy).select("_id").lean(),
+          Employee.findById(latestComment.createdBy)
+            .select("firstName lastName")
+            .lean(),
+          Client.findById(latestComment.createdBy)
+            .select("companyName contactPerson")
+            .lean(),
         ]);
 
-        if (admin) latestCommentAuthor = 'Admin';
-        else if (employee && 'firstName' in employee && 'lastName' in employee) {
+        if (admin) latestCommentAuthor = "Admin";
+        else if (
+          employee &&
+          "firstName" in employee &&
+          "lastName" in employee
+        ) {
           latestCommentAuthor = `${employee.firstName} ${employee.lastName}`;
-        }
-        else if (client && ('companyName' in client || 'contactPerson' in client)) {
-          latestCommentAuthor = client.contactPerson || client.companyName || 'Client';
+        } else if (
+          client &&
+          ("companyName" in client || "contactPerson" in client)
+        ) {
+          latestCommentAuthor =
+            client.contactPerson || client.companyName || "Client";
         }
       }
 
       // Add comment activity summary to timeline
       if (totalComments > 0 && latestComment) {
         timeline.push({
-          type: 'comments',
-          title: 'Comment Activity',
+          type: "comments",
+          title: "Comment Activity",
           date: latestComment.createdAt || ticket.createdAt,
           data: {
             totalComments,
-            latestComment: latestComment ? {
-              text: latestComment.text?.substring(0, 50) + (latestComment.text?.length > 50 ? '...' : ''),
-              date: latestComment.createdAt,
-              author: latestCommentAuthor
-            } : null
-          }
+            latestComment: latestComment
+              ? {
+                  text:
+                    latestComment.text?.substring(0, 50) +
+                    (latestComment.text?.length > 50 ? "..." : ""),
+                  date: latestComment.createdAt,
+                  author: latestCommentAuthor,
+                }
+              : null,
+          },
         });
       }
 
       // 6. Sort timeline events by date
-      timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      timeline.sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
 
       // Prepare response
       return res.status(200).json({
@@ -4136,20 +4365,18 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           status: ticket.status,
           currentPriority: ticket.priority,
           clientResolved: ticket.clientResolved || false,
-          timeline
-        }
+          timeline,
+        },
       });
-
     } catch (error) {
-      console.error('Error retrieving ticket timeline:', error);
+      console.error("Error retrieving ticket timeline:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving ticket timeline",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async getClientProjects(req: AuthRequest, res: Response): Promise<Response> {
     try {
@@ -4158,7 +4385,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!isValidObjectId(clientId)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid Client Id"
+          message: "Invalid Client Id",
         });
       }
 
@@ -4169,10 +4396,15 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       // Add status filter if provided
       if (status) {
-        if (!['Not Started', 'In Progress', 'Completed', 'On Hold'].includes(status as string)) {
+        if (
+          !["Not Started", "In Progress", "Completed", "On Hold"].includes(
+            status as string
+          )
+        ) {
           return res.status(400).json({
             success: false,
-            message: "Invalid status value. Must be 'Not Started', 'In Progress', 'Completed', or 'On Hold'"
+            message:
+              "Invalid status value. Must be 'Not Started', 'In Progress', 'Completed', or 'On Hold'",
           });
         }
         query.status = status;
@@ -4181,29 +4413,40 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       // Find projects
       const projects = await Project.find(query)
         .sort({ startDate: 1 }) // Sort by start date (ascending)
-        .populate('teamLeaders', 'firstName lastName employee_id')
-        .populate('teamMembers', 'firstName lastName employee_id')
-        .populate('managers', 'firstName lastName employee_id')
-        .populate('created_by', 'firstName lastName employee_id')
+        .populate("teamLeaders", "firstName lastName employee_id")
+        .populate("teamMembers", "firstName lastName employee_id")
+        .populate("managers", "firstName lastName employee_id")
+        .populate("created_by", "firstName lastName employee_id")
         .lean();
 
       // Calculate summary statistics
       const total = projects.length;
-      const completed = projects.filter(project => project.status === 'Completed').length;
-      const inProgress = projects.filter(project => project.status === 'In Progress').length;
-      const notStarted = projects.filter(project => project.status === 'Not Started').length;
-      const onHold = projects.filter(project => project.status === 'On Hold').length;
-      const highPriority = projects.filter(project => project.priority === 'High').length;
+      const completed = projects.filter(
+        (project) => project.status === "Completed"
+      ).length;
+      const inProgress = projects.filter(
+        (project) => project.status === "In Progress"
+      ).length;
+      const notStarted = projects.filter(
+        (project) => project.status === "Not Started"
+      ).length;
+      const onHold = projects.filter(
+        (project) => project.status === "On Hold"
+      ).length;
+      const highPriority = projects.filter(
+        (project) => project.priority === "High"
+      ).length;
 
       // Calculate completion percentage
-      const completionPercentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+      const completionPercentage =
+        total > 0 ? Math.round((completed / total) * 100) : 0;
 
       // Calculate overall progress including in-progress projects (weighted calculation)
       let overallProgress = 0;
       if (total > 0) {
         // Assign weights: Completed = 100%, In Progress = 50%, Not Started = 0%, On Hold = counted but no progress
         overallProgress = Math.round(
-          ((completed * 100) + (inProgress * 50)) / total
+          (completed * 100 + inProgress * 50) / total
         );
       }
 
@@ -4215,11 +4458,11 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         onHold,
         highPriority,
         completionPercentage,
-        overallProgress
+        overallProgress,
       };
 
       // Format projects for response
-      const formattedProjects = projects.map(project => {
+      const formattedProjects = projects.map((project) => {
         // Add type assertion for teamLeaders
         const teamLeadersArray = project.teamLeaders as unknown as Array<{
           firstName: string;
@@ -4227,26 +4470,40 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           employee_id: string;
         }>;
 
-        const teamLeader = teamLeadersArray && teamLeadersArray.length > 0
-          ? `${teamLeadersArray[0].firstName} ${teamLeadersArray[0].lastName}`
-          : 'Not assigned';
+        const teamLeader =
+          teamLeadersArray && teamLeadersArray.length > 0
+            ? `${teamLeadersArray[0].firstName} ${teamLeadersArray[0].lastName}`
+            : "Not assigned";
 
-        const daysToStart = project.status === 'Not Started' ?
-          Math.ceil((new Date(project.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
+        const daysToStart =
+          project.status === "Not Started"
+            ? Math.ceil(
+                (new Date(project.startDate).getTime() - new Date().getTime()) /
+                  (1000 * 60 * 60 * 24)
+              )
+            : 0;
 
-        const daysRemaining = project.status !== 'Completed' ?
-          Math.ceil((new Date(project.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
+        const daysRemaining =
+          project.status !== "Completed"
+            ? Math.ceil(
+                (new Date(project.endDate).getTime() - new Date().getTime()) /
+                  (1000 * 60 * 60 * 24)
+              )
+            : 0;
 
         // Calculate individual project progress percentage
         let progressPercentage = 0;
         switch (project.status) {
-          case 'Completed':
+          case "Completed":
             progressPercentage = 100;
             break;
-          case 'In Progress':
+          case "In Progress":
             // Calculate based on timeline - if halfway through timeline, assume 50% complete
-            const totalDuration = new Date(project.endDate).getTime() - new Date(project.startDate).getTime();
-            const elapsedDuration = new Date().getTime() - new Date(project.startDate).getTime();
+            const totalDuration =
+              new Date(project.endDate).getTime() -
+              new Date(project.startDate).getTime();
+            const elapsedDuration =
+              new Date().getTime() - new Date(project.startDate).getTime();
 
             if (totalDuration > 0) {
               progressPercentage = Math.min(
@@ -4257,13 +4514,18 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
               progressPercentage = Math.max(progressPercentage, 10);
             }
             break;
-          case 'Not Started':
+          case "Not Started":
             progressPercentage = 0;
             break;
-          case 'On Hold':
+          case "On Hold":
             // For on hold, show the progress at the time it was paused (estimate)
-            const totalDays = (new Date(project.endDate).getTime() - new Date(project.startDate).getTime()) / (1000 * 60 * 60 * 24);
-            const elapsedDays = (new Date().getTime() - new Date(project.startDate).getTime()) / (1000 * 60 * 60 * 24);
+            const totalDays =
+              (new Date(project.endDate).getTime() -
+                new Date(project.startDate).getTime()) /
+              (1000 * 60 * 60 * 24);
+            const elapsedDays =
+              (new Date().getTime() - new Date(project.startDate).getTime()) /
+              (1000 * 60 * 60 * 24);
 
             if (totalDays > 0) {
               progressPercentage = Math.min(
@@ -4282,16 +4544,20 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           endDate: project.endDate,
           status: project.status,
           priority: project.priority,
-          teamSize: (project.teamMembers?.length || 0) + (project.teamLeaders?.length || 0),
+          teamSize:
+            (project.teamMembers?.length || 0) +
+            (project.teamLeaders?.length || 0),
           leadContact: teamLeader,
           progressPercentage,
           timeframe: {
             daysToStart: daysToStart > 0 ? daysToStart : 0,
             daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
-            isOverdue: project.status !== 'Completed' && new Date(project.endDate) < new Date()
+            isOverdue:
+              project.status !== "Completed" &&
+              new Date(project.endDate) < new Date(),
           },
           tags: project.tags || [],
-          value: project.projectValue
+          value: project.projectValue,
         };
       });
 
@@ -4299,16 +4565,15 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         success: true,
         message: "Projects retrieved successfully",
         summary,
-        projects: formattedProjects
+        projects: formattedProjects,
       });
-
     } catch (error) {
-      console.error('Error retrieving projects:', error);
+      console.error("Error retrieving projects:", error);
 
       return res.status(500).json({
         success: false,
         message: "Error retrieving projects",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -4327,10 +4592,10 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       const reviews = await Review.find(query)
         .sort({ createdAt: -1 })
-        .populate('user_id', 'contactPerson')
+        .populate("user_id", "contactPerson")
         .lean();
 
-      const formattedReviews = reviews.map(review => ({
+      const formattedReviews = reviews.map((review) => ({
         id: review._id,
         user_id: review.user_id?._id,
         userName: (review.user_id as any)?.contactPerson,
@@ -4342,18 +4607,16 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       return res.status(200).json({
         success: true,
         message: "reviews retrieved successfully",
-        data: formattedReviews
+        data: formattedReviews,
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error retrieving reviews",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async deleteReview(req: Request, res: Response): Promise<Response> {
     try {
@@ -4362,7 +4625,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!id) {
         return res.status(400).json({
           success: false,
-          message: "review id is required"
+          message: "review id is required",
         });
       }
 
@@ -4375,7 +4638,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!review) {
         return res.status(404).json({
           success: false,
-          message: "review not found"
+          message: "review not found",
         });
       }
 
@@ -4384,18 +4647,16 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
 
       return res.status(200).json({
         success: true,
-        message: `review ${id} deleted successfully`
+        message: `review ${id} deleted successfully`,
       });
-
     } catch (error) {
       return res.status(500).json({
         success: false,
         message: "Error deleting review",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
 
   async getEmployeeSkills(req: AuthRequest, res: Response): Promise<Response> {
     try {
@@ -4404,40 +4665,41 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       if (!isValidObjectId(id)) {
         return res.status(401).json({
           success: false,
-          message: "Employee ID is missing"
+          message: "Employee ID is missing",
         });
       }
 
       // Find all skills for this employee, sorted by name
       const skills = await Skill.find({
-        employee_id: new Types.ObjectId(id)
+        employee_id: new Types.ObjectId(id),
       }).sort({ name: 1 });
 
       return res.status(200).json({
         success: true,
         message: "Skills retrieved successfully",
-        data: skills
+        data: skills,
       });
-
     } catch (error) {
-      console.error('Error retrieving skills:', error);
+      console.error("Error retrieving skills:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving skills",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-
-  async getEmpAttendanceAnalytics(req: AuthRequest, res: Response): Promise<Response> {
+  async getEmpAttendanceAnalytics(
+    req: AuthRequest,
+    res: Response
+  ): Promise<Response> {
     try {
       const employeeId = req.params.id;
 
       if (!isValidObjectId(employeeId)) {
         return res.status(401).json({
           success: false,
-          message: "Employee ID is missing"
+          message: "Employee ID is missing",
         });
       }
 
@@ -4459,12 +4721,12 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       // Get today's attendance record
       const todayAttendance = await AttendanceLog.findOne({
         employee_id: employeeId,
-        date: { $gte: today, $lt: tomorrow }
+        date: { $gte: today, $lt: tomorrow },
       });
 
       // Calculate today's hours
       let hoursToday = 0;
-      let currentStatus = 'Not Checked In';
+      let currentStatus = "Not Checked In";
       let isPunchedIn = false;
 
       if (todayAttendance) {
@@ -4476,19 +4738,24 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
           // Still punched in - calculate hours up to now
           isPunchedIn = true;
           const now = new Date();
-          hoursToday = Number(((now.getTime() - todayAttendance.punchIn.getTime()) / (1000 * 60 * 60)).toFixed(2));
-          currentStatus = 'Working';
+          hoursToday = Number(
+            (
+              (now.getTime() - todayAttendance.punchIn.getTime()) /
+              (1000 * 60 * 60)
+            ).toFixed(2)
+          );
+          currentStatus = "Working";
         }
       }
 
       // Get weekly hours
       const weeklyLogs = await AttendanceLog.find({
         employee_id: employeeId,
-        date: { $gte: startOfWeek, $lt: tomorrow }
+        date: { $gte: startOfWeek, $lt: tomorrow },
       });
 
       let hoursThisWeek = 0;
-      weeklyLogs.forEach(log => {
+      weeklyLogs.forEach((log) => {
         if (log.punchOut) {
           hoursThisWeek += log.totalHours;
         }
@@ -4502,11 +4769,11 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       // Get monthly hours and attendance status counts
       const monthlyLogs = await AttendanceLog.find({
         employee_id: employeeId,
-        date: { $gte: startOfMonth, $lt: tomorrow }
+        date: { $gte: startOfMonth, $lt: tomorrow },
       });
 
       let hoursThisMonth = 0;
-      monthlyLogs.forEach(log => {
+      monthlyLogs.forEach((log) => {
         if (log.punchOut) {
           hoursThisMonth += log.totalHours;
         }
@@ -4518,17 +4785,26 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
       }
 
       // Calculate attendance status counts for current month
-      const presentDays = monthlyLogs.filter(log => log.status === 'Present').length;
-      const halfDays = monthlyLogs.filter(log => log.status === 'Half-Day').length;
-      const absentDays = monthlyLogs.filter(log => log.status === 'Absent').length;
+      const presentDays = monthlyLogs.filter(
+        (log) => log.status === "Present"
+      ).length;
+      const halfDays = monthlyLogs.filter(
+        (log) => log.status === "Half-Day"
+      ).length;
+      const absentDays = monthlyLogs.filter(
+        (log) => log.status === "Absent"
+      ).length;
 
       // Calculate total expected workdays in the month so far
       const workdaysInMonthSoFar = this.getWeekdaysCount(startOfMonth, today);
 
       // Calculate attendance percentage
-      const attendancePercentage = workdaysInMonthSoFar > 0
-        ? Math.round(((presentDays + (halfDays * 0.5)) / workdaysInMonthSoFar) * 100)
-        : 0;
+      const attendancePercentage =
+        workdaysInMonthSoFar > 0
+          ? Math.round(
+              ((presentDays + halfDays * 0.5) / workdaysInMonthSoFar) * 100
+            )
+          : 0;
 
       // Format the time for display
       const formatTime = (hours: number): string => {
@@ -4539,9 +4815,9 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
         if (hrs === 0) {
           return `${mins} minutes`;
         } else if (mins === 0) {
-          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'}`;
+          return `${hrs} ${hrs === 1 ? "hour" : "hours"}`;
         } else {
-          return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ${mins} minutes`;
+          return `${hrs} ${hrs === 1 ? "hour" : "hours"} ${mins} minutes`;
         }
       };
 
@@ -4553,7 +4829,7 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
             hoursToday: Number(hoursToday.toFixed(2)),
             hoursDisplay: formatTime(hoursToday),
             currentStatus,
-            isPunchedIn
+            isPunchedIn,
           },
           summary: {
             hoursThisWeek: Number(hoursThisWeek.toFixed(2)),
@@ -4563,692 +4839,704 @@ async updateRole(req: AuthRequest, res: Response): Promise<Response> {
             attendancePercentage,
             presentDays,
             halfDays,
-            absentDays
+            absentDays,
           },
           standardHours: {
             daily: 8,
             weekly: 40,
-            monthly: workdaysInMonthSoFar * 8
-          }
-        }
+            monthly: workdaysInMonthSoFar * 8,
+          },
+        },
       });
-
     } catch (error) {
-      console.error('Error retrieving attendance analytics:', error);
+      console.error("Error retrieving attendance analytics:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving attendance analytics",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-  private async getAbsentEmployees(period: 'daily' | 'weekly' | 'monthly') {
+  private async getAbsentEmployees(period: "daily" | "weekly" | "monthly") {
     let startDate: Date;
     let endDate: Date = new Date();
 
     const today = new Date();
 
-    if (period === 'daily') {
+    if (period === "daily") {
       startDate = startOfDay(today);
       endDate = endOfDay(today);
-    } else if (period === 'weekly') {
+    } else if (period === "weekly") {
       startDate = startOfWeek(today, { weekStartsOn: 0 }); // sunday
       endDate = endOfWeek(today, { weekStartsOn: 0 });
-    } else if (period === 'monthly') {
+    } else if (period === "monthly") {
       startDate = startOfMonth(today);
       endDate = endOfMonth(today);
     } else {
-      throw new Error('Invalid period');
+      throw new Error("Invalid period");
     }
 
     const absentLogs = await AttendanceLog.find({
-      status: 'Absent',
+      status: "Absent",
       date: {
         $gte: startDate,
-        $lte: endDate
-      }
+        $lte: endDate,
+      },
     })
-    .populate({
-      path: 'employee_id',
-      select: 'employee_id firstName lastName' 
-    })
-    .exec();
+      .populate({
+        path: "employee_id",
+        select: "employee_id firstName lastName",
+      })
+      .exec();
 
-    const absentEmployees = absentLogs.map(log => {
+    const absentEmployees = absentLogs.map((log) => {
       const employee = log.employee_id as any;
       return {
         id: employee.employee_id,
-        name: `${employee.firstName} ${employee.lastName}`
+        name: `${employee.firstName} ${employee.lastName}`,
       };
     });
 
     return absentEmployees;
   }
 
-  async getPeriodicAttendance(req: AuthRequest, res: Response): Promise<Response> {
+  async getPeriodicAttendance(
+    req: AuthRequest,
+    res: Response
+  ): Promise<Response> {
     try {
       const { period } = req.query;
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - today.getDay());
       startOfWeek.setHours(0, 0, 0, 0);
-      
-      
+
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      
-      
+
       let stats;
-      if (period === 'monthly') {
-        const monthlyStats = await this.getAttendanceStats(startOfMonth, new Date());
+      if (period === "monthly") {
+        const monthlyStats = await this.getAttendanceStats(
+          startOfMonth,
+          new Date()
+        );
         stats = monthlyStats;
-      }
-      else if (period === 'weekly') {
-        const weeklyStats = await this.getAttendanceStats(startOfWeek, new Date());
-        stats = weeklyStats
-      }
-      else {
+      } else if (period === "weekly") {
+        const weeklyStats = await this.getAttendanceStats(
+          startOfWeek,
+          new Date()
+        );
+        stats = weeklyStats;
+      } else {
         const dailyStats = await this.getAttendanceStats(today, new Date());
-        stats = dailyStats
+        stats = dailyStats;
       }
 
-      const absentEmployees = await this.getAbsentEmployees(period as 'daily' | 'weekly' | 'monthly');
+      const absentEmployees = await this.getAbsentEmployees(
+        period as "daily" | "weekly" | "monthly"
+      );
 
       const result = {
         totalAttendance: stats.totalEmployees,
         attendanceData: [
-          { status: 'Present', percentage: stats?.presentPercentage, color: '#22c55e' },
-          { status: 'Absent', percentage: stats?.absentPercentage, color: '#ef4444' },
-          { status: 'Half-day', percentage: stats?.halfDayPercentage, color: '#f59e0b' },
+          {
+            status: "Present",
+            percentage: stats?.presentPercentage,
+            color: "#22c55e",
+          },
+          {
+            status: "Absent",
+            percentage: stats?.absentPercentage,
+            color: "#ef4444",
+          },
+          {
+            status: "Half-day",
+            percentage: stats?.halfDayPercentage,
+            color: "#f59e0b",
+          },
         ],
-        absentEmployees
-      }
+        absentEmployees,
+      };
 
       return res.status(200).json({
         success: true,
         message: "Attendance analytics retrieved successfully",
-        data: result
-      })
-
+        data: result,
+      });
     } catch (error) {
-      console.error('Error retrieving attendance analytics:', error);
+      console.error("Error retrieving attendance analytics:", error);
       return res.status(500).json({
         success: false,
         message: "Error retrieving attendance analytics",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-
-  async getTaskStatisticsForDashboard(req: Request, res: Response): Promise<Response> {
+  async getTaskStatisticsForDashboard(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
     try {
       const taskStats = await Task.aggregate([
         {
           $group: {
-            _id: '$status',
+            _id: "$status",
             count: { $sum: 1 },
-          }
-        }
+          },
+        },
       ]);
-  
+
       const statusColorMap: Record<string, string> = {
-        'Completed': '#22c55e',
-        'Ongoing': '#3b82f6',
-        'On Hold': '#f59e0b',
-        'Overdue': '#ef4444'
+        Completed: "#22c55e",
+        Ongoing: "#3b82f6",
+        "On Hold": "#f59e0b",
+        Overdue: "#ef4444",
       };
-  
+
       let totalTasks = 0;
       const statusCounts: Record<string, number> = {
-        'Completed': 0,
-        'Ongoing': 0,
-        'On Hold': 0,
-        'Overdue': 0
+        Completed: 0,
+        Ongoing: 0,
+        "On Hold": 0,
+        Overdue: 0,
       };
-  
-      taskStats.forEach(stat => {
+
+      taskStats.forEach((stat) => {
         const status = stat._id;
         if (status in statusCounts) {
           statusCounts[status] = stat.count;
           totalTasks += stat.count;
         }
       });
-  
-      const taskData = Object.keys(statusCounts).map(status => {
+
+      const taskData = Object.keys(statusCounts).map((status) => {
         const count = statusCounts[status];
-        const percentage = totalTasks > 0 ? Number(((count / totalTasks) * 100).toFixed(2)) : 0;
+        const percentage =
+          totalTasks > 0 ? Number(((count / totalTasks) * 100).toFixed(2)) : 0;
         return {
-          status: status as 'Completed' | 'Ongoing' | 'On Hold' | 'Overdue',
+          status: status as "Completed" | "Ongoing" | "On Hold" | "Overdue",
           percentage,
-          color: statusColorMap[status]
+          color: statusColorMap[status],
         };
       });
-  
+
       return res.status(200).json({
-        success:true,
+        success: true,
         message: "Task statistics retrieved successfully",
         data: {
           totalTasks: totalTasks,
-          taskData
-        }
+          taskData,
+        },
       });
-  
     } catch (error) {
       console.error(error);
       return res.status(500).json({
-        success:false,
+        success: false,
         message: "Error retrieving task statistics",
-        error: error instanceof Error ? error.message : "Unknown error"
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-  
-/**
- * Get all todos for the logged-in admin
- * Optionally filter by view (my day, important)
- */
-async getTodos(req: AuthRequest, res: Response): Promise<Response> {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: User ID is missing"
-      });
-    }
 
-    const adminId = req.user.id;
-    const { view } = req.query;
-    
-    // Build query for admin todos
-    const query: any = {
-      admin_id: new Types.ObjectId(adminId)
-    };
-    
-    // Add filters based on view parameter
-    if (view === 'myday') {
-      query.isMyDay = true;
-    } else if (view === 'important') {
-      query.isImportant = true;
-    }
-    
-    // Find todos matching the query
-    const todos = await Todo.find(query)
-      .sort({ created_at: -1 });
-    
-    // Calculate summary statistics
-    const summary = {
-      total: todos.length,
-      completed: todos.filter(todo => todo.completed).length,
-      remaining: todos.filter(todo => !todo.completed).length,
-      withDueDate: todos.filter(todo => todo.dueDate).length,
-      myDay: todos.filter(todo => todo.isMyDay).length,
-      important: todos.filter(todo => todo.isImportant).length
-    };
-    
-    return res.status(200).json({
-      success: true,
-      message: "Todos retrieved successfully",
-      summary,
-      data: todos
-    });
-    
-  } catch (error) {
-    console.error('Error retrieving todos:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving todos",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-}
-
-/**
- * Create a new todo for the admin
- */
-async createTodo(req: AuthRequest, res: Response): Promise<Response> {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: User ID is missing"
-      });
-    }
-
-    const adminId = req.user.id;
-    const { title } = req.body;
-    
-    // Validate required field
-    if (!title || !title.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Todo title is required"
-      });
-    }
-    
-    // Create todo with admin_id
-    const todo = new Todo({
-      admin_id: adminId,
-      title,
-      completed: false,
-      isImportant: false,
-      isMyDay: false,
-      subtasks: [],
-      created_at: new Date(),
-      updated_at: new Date()
-    });
-    
-    const savedTodo = await todo.save();
-    
-    return res.status(201).json({
-      success: true,
-      message: "Todo created successfully",
-      data: savedTodo
-    });
-    
-  } catch (error) {
-    console.error('Error creating todo:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error creating todo",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-}
-
-/**
- * Edit a todo - update properties and manage subtasks
- */
-async editTodo(req: AuthRequest, res: Response): Promise<Response> {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: User ID is missing"
-      });
-    }
-
-    const adminId = req.user.id;
-    const { todoId } = req.params;
-    const { 
-      title, 
-      completed, 
-      isImportant, 
-      isMyDay, 
-      dueDate,
-      reminderDate,
-      subtasks,
-      addSubtasks,
-      removeSubtaskIds
-    } = req.body;
-
-    // Validate todoId
-    if (!todoId || !Types.ObjectId.isValid(todoId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid todo ID is required"
-      });
-    }
-
-    // Find the todo
-    const todo = await Todo.findOne({
-      _id: new Types.ObjectId(todoId),
-      admin_id: new Types.ObjectId(adminId)
-    });
-
-    if (!todo) {
-      return res.status(404).json({
-        success: false,
-        message: "Todo not found"
-      });
-    }
-
-    // Update fields if provided
-    if (title !== undefined) todo.title = title;
-    if (completed !== undefined) todo.completed = completed;
-    if (isImportant !== undefined) todo.isImportant = isImportant;
-    if (isMyDay !== undefined) todo.isMyDay = isMyDay;
-    
-    // Handle date fields
-    if (dueDate !== undefined) {
-      todo.dueDate = dueDate ? new Date(dueDate) : null;
-    }
-    
-    if (reminderDate !== undefined) {
-      todo.reminderDate = reminderDate ? new Date(reminderDate) : null;
-    }
-    
-    // Handle subtasks operations
-    if (subtasks && Array.isArray(subtasks)) {
-      todo.subtasks = subtasks.map(subtask => ({
-        title: subtask.title,
-        completed: subtask.completed || false
-      }));
-    }
-    
-    if (addSubtasks && Array.isArray(addSubtasks)) {
-      const newSubtasks = addSubtasks.map(subtask => ({
-        title: subtask.title,
-        completed: subtask.completed || false
-      }));
-      
-      todo.subtasks = [...todo.subtasks, ...newSubtasks];
-    }
-    
-    if (removeSubtaskIds && Array.isArray(removeSubtaskIds) && removeSubtaskIds.length > 0) {
-      todo.subtasks = todo.subtasks.filter(subtask => 
-        !removeSubtaskIds.includes(subtask._id?.toString() || '')
-      );
-    }
-    
-    // Update modified timestamp
-    todo.updated_at = new Date();
-    await todo.save();
-    
-    return res.status(200).json({
-      success: true,
-      message: "Todo updated successfully",
-      data: todo
-    });
-    
-  } catch (error) {
-    console.error('Error updating todo:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error updating todo",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-}
-
-/**
- * Toggle todo completion status
- */
-async toggleTodo(req: AuthRequest, res: Response): Promise<Response> {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: User ID is missing"
-      });
-    }
-
-    const adminId = req.user.id;
-    const { todoId } = req.body;
-    
-    // Validate todoId
-    if (!todoId || !Types.ObjectId.isValid(todoId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid todo ID is required"
-      });
-    }
-    
-    // Find the todo
-    const todo = await Todo.findOne({
-      _id: new Types.ObjectId(todoId),
-      admin_id: new Types.ObjectId(adminId)
-    });
-    
-    if (!todo) {
-      return res.status(404).json({
-        success: false,
-        message: "Todo not found"
-      });
-    }
-    
-    // Toggle completed status
-    todo.completed = !todo.completed;
-    
-    // If the todo has subtasks, update all subtask statuses to match the parent
-    if (todo.subtasks && todo.subtasks.length > 0) {
-      todo.subtasks = todo.subtasks.map(subtask => ({
-        ...subtask,
-        completed: todo.completed
-      }));
-    }
-    
-    // Update modified timestamp
-    todo.updated_at = new Date();
-    await todo.save();
-    
-    return res.status(200).json({
-      success: true,
-      message: `Todo marked as ${todo.completed ? 'completed' : 'incomplete'}${todo.subtasks.length > 0 ? 
-        ' (all subtasks updated)' : ''}`,
-      data: todo
-    });
-    
-  } catch (error) {
-    console.error('Error toggling todo status:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error updating todo status",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-}
-
-/**
- * Delete a todo
- */
-async deleteTodo(req: AuthRequest, res: Response): Promise<Response> {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: User ID is missing"
-      });
-    }
-
-    const adminId = req.user.id;
-    const { todoId } = req.body;
-    
-    // Validate todoId
-    if (!todoId || !Types.ObjectId.isValid(todoId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid todo ID is required"
-      });
-    }
-    
-    // Delete the todo
-    const result = await Todo.findOneAndDelete({
-      _id: new Types.ObjectId(todoId),
-      admin_id: new Types.ObjectId(adminId)
-    });
-    
-    if (!result) {
-      return res.status(404).json({
-        success: false,
-        message: "Todo not found"
-      });
-    }
-    
-    return res.status(200).json({
-      success: true,
-      message: "Todo deleted successfully"
-    });
-    
-  } catch (error) {
-    console.error('Error deleting todo:', error);
-    return res.status(500).json({
-      success: false,
-      message: "Error deleting todo",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-}
-
-async getEmployeeChart(req: Request, res: Response): Promise<Response> {
-  try {
-    const period = (req.query.period as string)?.toLowerCase() || 'week'; 
-
-    const now = dayjs();
-
-    let thisPeriodStart: Date, thisPeriodEnd: Date;
-    let lastPeriodStart: Date, lastPeriodEnd: Date;
-
-    if (period === 'month') {
-      thisPeriodStart = now.startOf('month').toDate();
-      thisPeriodEnd = now.endOf('day').toDate(); // till today
-
-      lastPeriodStart = now.subtract(1, 'month').startOf('month').toDate();
-      lastPeriodEnd = now.subtract(1, 'month').endOf('month').toDate();
-    } else {
-      // Default to week
-      thisPeriodStart = now.startOf('week').toDate(); // Monday
-      thisPeriodEnd = now.endOf('day').toDate(); // till today
-
-      lastPeriodStart = now.subtract(1, 'week').startOf('week').toDate(); // Last Monday
-      lastPeriodEnd = now.subtract(1, 'week').endOf('week').toDate(); // Last Sunday
-    }
-
-    const departmentStats = await Employee.aggregate([
-      {
-        $group: {
-          _id: '$department_id',
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $lookup: {
-          from: 'departments',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'department'
-        }
-      },
-      {
-        $unwind: {
-          path: '$department',
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          departmentName: { $ifNull: ['$department.name', 'Unknown'] },
-          count: 1
-        }
+  /**
+   * Get all todos for the logged-in admin
+   * Optionally filter by view (my day, important)
+   */
+  async getTodos(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing",
+        });
       }
-    ]);
 
-    const labels: string[] = [];
-    const data: number[] = [];
+      const adminId = req.user.id;
+      const { view } = req.query;
 
-    departmentStats.forEach(stat => {
-      labels.push(stat.departmentName);
-      data.push(stat.count);
-    });
+      // Build query for admin todos
+      const query: any = {
+        admin_id: new Types.ObjectId(adminId),
+      };
 
-    const thisPeriodHires = await Employee.countDocuments({
-      hireDate: { $gte: thisPeriodStart, $lte: thisPeriodEnd }
-    });
+      // Add filters based on view parameter
+      if (view === "myday") {
+        query.isMyDay = true;
+      } else if (view === "important") {
+        query.isImportant = true;
+      }
 
-    const lastPeriodHires = await Employee.countDocuments({
-      hireDate: { $gte: lastPeriodStart, $lte: lastPeriodEnd }
-    });
+      // Find todos matching the query
+      const todos = await Todo.find(query).sort({ created_at: -1 });
 
-    let growthPercentage = 0;
-    if (lastPeriodHires > 0) {
-      growthPercentage = ((thisPeriodHires - lastPeriodHires) / lastPeriodHires) * 100;
-    } else if (thisPeriodHires > 0) {
-      growthPercentage = 100;
-    } else {
-      growthPercentage = 0;
+      // Calculate summary statistics
+      const summary = {
+        total: todos.length,
+        completed: todos.filter((todo) => todo.completed).length,
+        remaining: todos.filter((todo) => !todo.completed).length,
+        withDueDate: todos.filter((todo) => todo.dueDate).length,
+        myDay: todos.filter((todo) => todo.isMyDay).length,
+        important: todos.filter((todo) => todo.isImportant).length,
+      };
+
+      return res.status(200).json({
+        success: true,
+        message: "Todos retrieved successfully",
+        summary,
+        data: todos,
+      });
+    } catch (error) {
+      console.error("Error retrieving todos:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving todos",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
+  }
 
-    growthPercentage = Number(growthPercentage.toFixed(2));
+  /**
+   * Create a new todo for the admin
+   */
+  async createTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing",
+        });
+      }
 
-    return res.status(200).json({
-      success: true,
-      message: "Employee chart data retrieved successfully",
-      data: {
+      const adminId = req.user.id;
+      const { title } = req.body;
+
+      // Validate required field
+      if (!title || !title.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Todo title is required",
+        });
+      }
+
+      // Create todo with admin_id
+      const todo = new Todo({
+        admin_id: adminId,
+        title,
+        completed: false,
+        isImportant: false,
+        isMyDay: false,
+        subtasks: [],
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const savedTodo = await todo.save();
+
+      return res.status(201).json({
+        success: true,
+        message: "Todo created successfully",
+        data: savedTodo,
+      });
+    } catch (error) {
+      console.error("Error creating todo:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error creating todo",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  /**
+   * Edit a todo - update properties and manage subtasks
+   */
+  async editTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing",
+        });
+      }
+
+      const adminId = req.user.id;
+      const { todoId } = req.params;
+      const {
+        title,
+        completed,
+        isImportant,
+        isMyDay,
+        dueDate,
+        reminderDate,
+        subtasks,
+        addSubtasks,
+        removeSubtaskIds,
+      } = req.body;
+
+      // Validate todoId
+      if (!todoId || !Types.ObjectId.isValid(todoId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid todo ID is required",
+        });
+      }
+
+      // Find the todo
+      const todo = await Todo.findOne({
+        _id: new Types.ObjectId(todoId),
+        admin_id: new Types.ObjectId(adminId),
+      });
+
+      if (!todo) {
+        return res.status(404).json({
+          success: false,
+          message: "Todo not found",
+        });
+      }
+
+      // Update fields if provided
+      if (title !== undefined) todo.title = title;
+      if (completed !== undefined) todo.completed = completed;
+      if (isImportant !== undefined) todo.isImportant = isImportant;
+      if (isMyDay !== undefined) todo.isMyDay = isMyDay;
+
+      // Handle date fields
+      if (dueDate !== undefined) {
+        todo.dueDate = dueDate ? new Date(dueDate) : null;
+      }
+
+      if (reminderDate !== undefined) {
+        todo.reminderDate = reminderDate ? new Date(reminderDate) : null;
+      }
+
+      // Handle subtasks operations
+      if (subtasks && Array.isArray(subtasks)) {
+        todo.subtasks = subtasks.map((subtask) => ({
+          title: subtask.title,
+          completed: subtask.completed || false,
+        }));
+      }
+
+      if (addSubtasks && Array.isArray(addSubtasks)) {
+        const newSubtasks = addSubtasks.map((subtask) => ({
+          title: subtask.title,
+          completed: subtask.completed || false,
+        }));
+
+        todo.subtasks = [...todo.subtasks, ...newSubtasks];
+      }
+
+      if (
+        removeSubtaskIds &&
+        Array.isArray(removeSubtaskIds) &&
+        removeSubtaskIds.length > 0
+      ) {
+        todo.subtasks = todo.subtasks.filter(
+          (subtask) => !removeSubtaskIds.includes(subtask._id?.toString() || "")
+        );
+      }
+
+      // Update modified timestamp
+      todo.updated_at = new Date();
+      await todo.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Todo updated successfully",
+        data: todo,
+      });
+    } catch (error) {
+      console.error("Error updating todo:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating todo",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  /**
+   * Toggle todo completion status
+   */
+  async toggleTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing",
+        });
+      }
+
+      const adminId = req.user.id;
+      const { todoId } = req.body;
+
+      // Validate todoId
+      if (!todoId || !Types.ObjectId.isValid(todoId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid todo ID is required",
+        });
+      }
+
+      // Find the todo
+      const todo = await Todo.findOne({
+        _id: new Types.ObjectId(todoId),
+        admin_id: new Types.ObjectId(adminId),
+      });
+
+      if (!todo) {
+        return res.status(404).json({
+          success: false,
+          message: "Todo not found",
+        });
+      }
+
+      // Toggle completed status
+      todo.completed = !todo.completed;
+
+      // If the todo has subtasks, update all subtask statuses to match the parent
+      if (todo.subtasks && todo.subtasks.length > 0) {
+        todo.subtasks = todo.subtasks.map((subtask) => ({
+          ...subtask,
+          completed: todo.completed,
+        }));
+      }
+
+      // Update modified timestamp
+      todo.updated_at = new Date();
+      await todo.save();
+
+      return res.status(200).json({
+        success: true,
+        message: `Todo marked as ${
+          todo.completed ? "completed" : "incomplete"
+        }${todo.subtasks.length > 0 ? " (all subtasks updated)" : ""}`,
+        data: todo,
+      });
+    } catch (error) {
+      console.error("Error toggling todo status:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error updating todo status",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  /**
+   * Delete a todo
+   */
+  async deleteTodo(req: AuthRequest, res: Response): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing",
+        });
+      }
+
+      const adminId = req.user.id;
+      const { todoId } = req.body;
+
+      // Validate todoId
+      if (!todoId || !Types.ObjectId.isValid(todoId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid todo ID is required",
+        });
+      }
+
+      // Delete the todo
+      const result = await Todo.findOneAndDelete({
+        _id: new Types.ObjectId(todoId),
+        admin_id: new Types.ObjectId(adminId),
+      });
+
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Todo not found",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Todo deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting todo:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting todo",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  async getEmployeeChart(req: Request, res: Response): Promise<Response> {
+    try {
+      const period = (req.query.period as string)?.toLowerCase() || "week";
+
+      const now = dayjs();
+
+      let thisPeriodStart: Date, thisPeriodEnd: Date;
+      let lastPeriodStart: Date, lastPeriodEnd: Date;
+
+      if (period === "month") {
+        thisPeriodStart = now.startOf("month").toDate();
+        thisPeriodEnd = now.endOf("day").toDate(); // till today
+
+        lastPeriodStart = now.subtract(1, "month").startOf("month").toDate();
+        lastPeriodEnd = now.subtract(1, "month").endOf("month").toDate();
+      } else {
+        // Default to week
+        thisPeriodStart = now.startOf("week").toDate(); // Monday
+        thisPeriodEnd = now.endOf("day").toDate(); // till today
+
+        lastPeriodStart = now.subtract(1, "week").startOf("week").toDate(); // Last Monday
+        lastPeriodEnd = now.subtract(1, "week").endOf("week").toDate(); // Last Sunday
+      }
+
+      const departmentStats = await Employee.aggregate([
+        {
+          $group: {
+            _id: "$department_id",
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $lookup: {
+            from: "departments",
+            localField: "_id",
+            foreignField: "_id",
+            as: "department",
+          },
+        },
+        {
+          $unwind: {
+            path: "$department",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            departmentName: { $ifNull: ["$department.name", "Unknown"] },
+            count: 1,
+          },
+        },
+      ]);
+
+      const labels: string[] = [];
+      const data: number[] = [];
+
+      departmentStats.forEach((stat) => {
+        labels.push(stat.departmentName);
+        data.push(stat.count);
+      });
+
+      const thisPeriodHires = await Employee.countDocuments({
+        hireDate: { $gte: thisPeriodStart, $lte: thisPeriodEnd },
+      });
+
+      const lastPeriodHires = await Employee.countDocuments({
+        hireDate: { $gte: lastPeriodStart, $lte: lastPeriodEnd },
+      });
+
+      let growthPercentage = 0;
+      if (lastPeriodHires > 0) {
+        growthPercentage =
+          ((thisPeriodHires - lastPeriodHires) / lastPeriodHires) * 100;
+      } else if (thisPeriodHires > 0) {
+        growthPercentage = 100;
+      } else {
+        growthPercentage = 0;
+      }
+
+      growthPercentage = Number(growthPercentage.toFixed(2));
+
+      return res.status(200).json({
+        success: true,
+        message: "Employee chart data retrieved successfully",
+        data: {
           departments: {
             labels,
-            data
+            data,
           },
           growth: {
             percentage: growthPercentage,
-            period: period.charAt(0).toUpperCase() + period.slice(1) 
-          }
+            period: period.charAt(0).toUpperCase() + period.slice(1),
+          },
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving employee chart data",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  async createProjectDisplay(
+    req: AuthRequest,
+    res: Response
+  ): Promise<Response> {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Admin ID is missing",
+        });
       }
-    });
 
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      success: false,
-      message: "Error retrieving employee chart data",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
+      const { project_id, content } = req.body;
+
+      // Validate project_id
+      if (!project_id) {
+        return res.status(400).json({
+          success: false,
+          message: "Project ID is required",
+        });
+      }
+
+      // Check if project exists
+      const project = await Project.findById(project_id);
+      if (!project) {
+        return res.status(404).json({
+          success: false,
+          message: "Project not found",
+        });
+      }
+
+      // Create project display
+      const projectDisplay = new ProjectDisplay({
+        project_id,
+        content: content || "",
+      });
+
+      const savedDisplay = await projectDisplay.save();
+
+      return res.status(201).json({
+        success: true,
+        message: "Project display created successfully",
+        data: savedDisplay,
+      });
+    } catch (error) {
+      console.error("Error creating project display:", error);
+
+      // Handle duplicate key error
+
+      return res.status(500).json({
+        success: false,
+        message: "Error creating project display",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
 }
-
-
-async createProjectDisplay(req: AuthRequest, res: Response): Promise<Response> {
-  try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized: Admin ID is missing"
-      });
-    }
-
-    const { project_id, content } = req.body;
-
-    // Validate project_id
-    if (!project_id) {
-      return res.status(400).json({
-        success: false,
-        message: "Project ID is required"
-      });
-    }
-
-    // Check if project exists
-    const project = await Project.findById(project_id);
-    if (!project) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found"
-      });
-    }
-
-    // Create project display
-    const projectDisplay = new ProjectDisplay({
-      project_id,
-      content: content || ""
-    });
-
-    const savedDisplay = await projectDisplay.save();
-
-    return res.status(201).json({
-      success: true,
-      message: "Project display created successfully",
-      data: savedDisplay
-    });
-
-  } catch (error) {
-    console.error('Error creating project display:', error);
-    
-    // Handle duplicate key error
-    
-
-    return res.status(500).json({
-      success: false,
-      message: "Error creating project display",
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-  }
-}
-
-
-}
-
-
-
