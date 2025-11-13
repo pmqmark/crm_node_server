@@ -1,13 +1,12 @@
-import { Schema, model } from 'mongoose';
-import User from './user'
-import {IUser,IAdmin,IClient,IEmployee} from "../dtos/userdto"
-
-
+import { Schema, model } from "mongoose";
+import User from "./user";
+import { IUser, IAdmin, IClient, IEmployee } from "../dtos/userdto";
 
 const clientSchema = new Schema<IClient>({
   companyName: {
     type: String,
-    required: true,
+    // required: true,since no need of company name
+    default: "Confidential",
   },
   contactPerson: {
     type: String,
@@ -24,12 +23,9 @@ const clientSchema = new Schema<IClient>({
   description: {
     type: String,
     required: true,
-  }
-
-
-  
+  },
 });
 
-const Client = User.discriminator<IClient>('Client', clientSchema);
+const Client = User.discriminator<IClient>("Client", clientSchema);
 
 export { Client, IClient };

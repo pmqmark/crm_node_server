@@ -1,41 +1,54 @@
-import express, { NextFunction, Request, Response } from 'express'
-import dotenv from 'dotenv';
-import path from 'path';
+import express, { NextFunction, Request, Response } from "express";
+import dotenv from "dotenv";
+import path from "path";
 const CookieParser = require("cookie-parser");
 const cors = require("cors");
-const db = require("./db")
+const db = require("./db");
 
 dotenv.config();
 
 import adminRouter from "./routes/admin";
-import authRouter from "./routes/auth"
-import employeerouter from "./routes/employee"
+import authRouter from "./routes/auth";
+import employeerouter from "./routes/employee";
 import clientRouter from "./routes/client";
-import { generateAccessToken, generateRefreshToken } from "./middleware/tokenMiddleware";
 
+import {
+  generateAccessToken,
+  generateRefreshToken,
+} from "./middleware/tokenMiddleware";
 
-const app = express()
-app.use(cors({
-  origin: '*',                // Allow all origins
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],  // Allow all common HTTP methods
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token', 'Origin', 'Accept'], // Common headers
-  credentials: true           // Allow cookies to be sent with requests
-}));
-db.connect()
-app.use(CookieParser())
+const app = express();
+app.use(
+  cors({
+    origin: "*", // Allow all origins
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], // Allow all common HTTP methods
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "x-access-token",
+      "Origin",
+      "Accept",
+    ], // Common headers
+    credentials: true, // Allow cookies to be sent with requests
+  })
+);
+db.connect();
+app.use(CookieParser()); //Parses then cookie heaer from requests
 app.use(express.json()); // ✅ Parses JSON bodies
 app.use(express.urlencoded({ extended: true })); // ✅ Parses URL-encoded bodies
-app.use('/api/admin', adminRouter)
-app.use('/api/auth', authRouter)
-app.use('/api/employee', employeerouter)
-app.use('/api/client', clientRouter)
-
+app.use("/api/admin", adminRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/employee", employeerouter);
+app.use("/api/client", clientRouter);
 
 const PORT = process.env.PORT || 8080;
-console.log(PORT)
+console.log(PORT);
 
 app.listen(PORT, () => {
   // console.log(generateAccessToken(dummyUser))
   console.log(`Running on port ${PORT}`);
 });
 
+app.get("/", (req, res) => {
+  res.send("Hello World");
+});
