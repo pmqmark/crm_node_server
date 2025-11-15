@@ -18,14 +18,21 @@ import {
 } from "./middleware/tokenMiddleware";
 
 const app = express();
-// app.use(cors({
-//   origin: '*',                // Allow all origins
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],  // Allow all common HTTP methods
-//   allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token', 'Origin', 'Accept'], // Common headers
-//   credentials: true           // Allow cookies to be sent with requests
-// }));
+app.use(
+  cors({
+    origin: "*", // Allow all origins
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], // Allow all common HTTP methods
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "x-access-token",
+      "Origin",
+      "Accept",
+    ], // Common headers
+    credentials: true, // Allow cookies to be sent with requests
+  })
+);
 
-app.use(cors()); // cors to connect in development mode
 db.connect();
 app.use(CookieParser());
 app.use(express.json()); // ✅ Parses JSON bodies
