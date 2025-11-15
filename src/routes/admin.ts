@@ -206,6 +206,12 @@ router.post("/add-task", (req, res) => {
   adminController.assignTask(req, res);
 });
 
+// update task 
+router.patch("/edit-task", (req, res) => {
+  adminController.editTask(req, res);
+});
+
+
 router.post("/get-project-tasks-stats", (req, res) => {
   adminController.getProjectTaskStatistics(req, res);
 });
