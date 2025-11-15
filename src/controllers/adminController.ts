@@ -3149,15 +3149,19 @@ export class AdminController {
 
   async listProjects(req: Request, res: Response): Promise<Response> {
     try {
-      const projects = await Project.find();
+      const projects = await Project.find()
+        .populate("client", "-password") // exclude password
+        .populate("teamMembers", "-password") // include only safe fields
+        .populate("teamLeaders", "-password")
+        .populate("managers", "-password");
 
       return res.status(200).json({
-        message: "clients retrieved successfully",
+        message: "projects retrieved successfully",
         data: projects,
       });
     } catch (error) {
       return res.status(500).json({
-        message: "Error retrieving employees",
+        message: "Error retrieving projects",
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }
