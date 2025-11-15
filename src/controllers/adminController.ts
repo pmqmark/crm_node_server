@@ -465,132 +465,7 @@ export class AdminController {
     }
   }
 
-  async editTask(req: Request, res: Response): Promise<Response> {
-    try {
-      const { taskId, project_id, assigned_employees, description, status } =
-        req.body;
-
-      // Validate taskId
-      if (!taskId || !Types.ObjectId.isValid(taskId)) {
-        return res.status(400).json({
-          success: false,
-          message: "Valid task ID is required",
-        });
-      }
-
-      // Find task
-      const task = await Task.findById(taskId);
-      if (!task) {
-        return res.status(404).json({
-          success: false,
-          message: "Task not found",
-        });
-      }
-
-      // Build update object
-      const updateData: any = {};
-
-      // Update project if provided
-      if (project_id) {
-        if (!Types.ObjectId.isValid(project_id)) {
-          return res.status(400).json({
-            success: false,
-            message: "Invalid project ID",
-          });
-        }
-        const project = await Project.findById(project_id);
-        if (!project) {
-          return res.status(404).json({
-            success: false,
-            message: "Project not found",
-          });
-        }
-        updateData.project_id = new Types.ObjectId(project_id);
-      }
-
-      // Update employees if provided
-      if (assigned_employees) {
-        if (!Array.isArray(assigned_employees)) {
-          return res.status(400).json({
-            success: false,
-            message: "Assigned employees must be an array",
-          });
-        }
-
-        const validObjectIds = assigned_employees.every((id) =>
-          Types.ObjectId.isValid(id)
-        );
-        if (!validObjectIds) {
-          return res.status(400).json({
-            success: false,
-            message: "One or more employee IDs are invalid",
-          });
-        }
-
-        const objectIds = assigned_employees.map(
-          (id) => new Types.ObjectId(id)
-        );
-        const validEmployees = await Employee.find({
-          _id: { $in: objectIds },
-        }).select("_id firstName lastName");
-
-        if (validEmployees.length !== assigned_employees.length) {
-          const foundIds = validEmployees.map((emp) => emp._id.toString());
-          const invalidIds = assigned_employees.filter(
-            (id) => !foundIds.includes(id.toString())
-          );
-          return res.status(400).json({
-            success: false,
-            message: "Some employee IDs are invalid",
-            invalidEmployees: invalidIds,
-          });
-        }
-
-        updateData.assigned_employees = objectIds;
-      }
-
-      // Update description if provided
-      if (description) {
-        updateData.description = description;
-      }
-
-      // Update status if provided
-      if (status) {
-        if (!["Pending", "In Progress", "Completed"].includes(status)) {
-          return res.status(400).json({
-            success: false,
-            message: "Invalid status value",
-          });
-        }
-        updateData.status = status;
-      }
-
-      // Apply updates
-      Object.assign(task, updateData);
-
-      // Save updated task
-      const updatedTask = await task.save();
-
-      // Populate employee details for response
-      const populatedTask = await Task.findById(updatedTask._id)
-        .populate("project_id", "name")
-        .populate("assigned_employees", "firstName lastName")
-        .lean();
-
-      return res.status(200).json({
-        success: true,
-        message: "Task updated successfully",
-        data: populatedTask,
-      });
-    } catch (error) {
-      console.error("Error in editTask:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Error editing task",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
+ 
 
   async updateRole(req: AuthRequest, res: Response): Promise<Response> {
     try {
@@ -1189,6 +1064,182 @@ export class AdminController {
       return res.status(500).json({
         success: false,
         message: "Error assigning task",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  async editTask(req: Request, res: Response): Promise<Response> {
+    try {
+      const { id } = req.params; // ✅ read id from params
+      const { project_id, assigned_employees, description, status, priority } =
+        req.body;
+
+      // Validate id
+      if (!id || !Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid task ID is required",
+        });
+      }
+
+      // Find task
+      const task = await Task.findById(id);
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          message: "Task not found",
+        });
+      }
+
+      // Build update object
+      const updateData: any = {};
+
+      // Update project if provided
+      if (project_id) {
+        if (!Types.ObjectId.isValid(project_id)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid project ID",
+          });
+        }
+        const project = await Project.findById(project_id);
+        if (!project) {
+          return res.status(404).json({
+            success: false,
+            message: "Project not found",
+          });
+        }
+        updateData.project_id = new Types.ObjectId(project_id);
+      }
+
+      // Update employees if provided
+      if (assigned_employees) {
+        if (!Array.isArray(assigned_employees)) {
+          return res.status(400).json({
+            success: false,
+            message: "Assigned employees must be an array",
+          });
+        }
+
+        const validObjectIds = assigned_employees.every((id) =>
+          Types.ObjectId.isValid(id)
+        );
+        if (!validObjectIds) {
+          return res.status(400).json({
+            success: false,
+            message: "One or more employee IDs are invalid",
+          });
+        }
+
+        const objectIds = assigned_employees.map(
+          (id) => new Types.ObjectId(id)
+        );
+        const validEmployees = await Employee.find({
+          _id: { $in: objectIds },
+        }).select("_id firstName lastName");
+
+        if (validEmployees.length !== assigned_employees.length) {
+          const foundIds = validEmployees.map((emp) => emp._id.toString());
+          const invalidIds = assigned_employees.filter(
+            (id) => !foundIds.includes(id.toString())
+          );
+          return res.status(400).json({
+            success: false,
+            message: "Some employee IDs are invalid",
+            invalidEmployees: invalidIds,
+          });
+        }
+
+        updateData.assigned_employees = objectIds;
+      }
+
+      // Update description if provided
+      if (description) {
+        updateData.description = description;
+      }
+
+      // Update status if provided
+      if (status) {
+        if (!["Pending", "In Progress", "Completed"].includes(status)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid status value",
+          });
+        }
+        updateData.status = status;
+      }
+
+      // ✅ Update priority if provided
+      if (priority) {
+        if (!["Low", "Medium", "High"].includes(priority)) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Invalid priority value. Allowed values: Low, Medium, High",
+          });
+        }
+        updateData.priority = priority;
+      }
+
+      // Apply updates
+      Object.assign(task, updateData);
+
+      // Save updated task
+      const updatedTask = await task.save();
+
+      // Populate employee details for response
+      const populatedTask = await Task.findById(updatedTask._id)
+        .populate("project_id", "name")
+        .populate("assigned_employees", "firstName lastName")
+        .lean();
+
+      return res.status(200).json({
+        success: true,
+        message: "Task updated successfully",
+        data: populatedTask,
+      });
+    } catch (error) {
+      console.error("Error in editTask:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error editing task",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+  async deleteTask(req: Request, res: Response): Promise<Response> {
+    try {
+      const { id } = req.params;
+
+      // Validate id
+      if (!id || !Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid task ID is required",
+        });
+      }
+
+      // Find and delete task
+      const deletedTask = await Task.findByIdAndDelete(id);
+
+      if (!deletedTask) {
+        return res.status(404).json({
+          success: false,
+          message: "Task not found",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Task deleted successfully",
+        data: deletedTask,
+      });
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting task",
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }
