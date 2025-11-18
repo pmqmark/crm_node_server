@@ -206,6 +206,15 @@ router.post("/add-task", (req, res) => {
   adminController.assignTask(req, res);
 });
 
+// update task
+router.patch("/edit-task/:id", (req, res) => {
+  adminController.editTask(req, res);
+});
+
+router.delete("/delete-task/:id", (req, res) => {
+  adminController.deleteTask(req, res);
+});
+
 router.post("/get-project-tasks-stats", (req, res) => {
   adminController.getProjectTaskStatistics(req, res);
 });
