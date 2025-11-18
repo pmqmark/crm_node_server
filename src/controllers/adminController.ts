@@ -465,8 +465,6 @@ export class AdminController {
     }
   }
 
- 
-
   async updateRole(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
@@ -1157,6 +1155,22 @@ export class AdminController {
       // Update description if provided
       if (description) {
         updateData.description = description;
+      }
+
+      if (req.body.dueDate !== undefined) {
+        // Allow null to clear the date
+        if (req.body.dueDate === null) {
+          updateData.dueDate = null;
+        } else {
+          const parsedDate = new Date(req.body.dueDate);
+          if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({
+              success: false,
+              message: "Invalid date format",
+            });
+          }
+          updateData.dueDate = parsedDate;
+        }
       }
 
       // Update status if provided
