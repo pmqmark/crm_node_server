@@ -40,7 +40,6 @@ const taskSchema = new Schema<ITask>(
         "Assigned",
         "Under Planning",
       ],
-      default: "Pending",
     },
     dueDate: {
       type: Date,
@@ -49,7 +48,7 @@ const taskSchema = new Schema<ITask>(
     priority: {
       type: String,
       enum: ["Low", "Medium", "High"],
-      required: false,
+      required: true,
     },
   },
   {
