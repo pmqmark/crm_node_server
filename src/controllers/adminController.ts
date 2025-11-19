@@ -465,8 +465,6 @@ export class AdminController {
     }
   }
 
- 
-
   async updateRole(req: AuthRequest, res: Response): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
@@ -983,20 +981,28 @@ export class AdminController {
         project_id,
         assigned_employees,
         description,
-        status = "Pending",
-        dueDate, // ✅ Extract dueDate
+        status,
+        dueDate,
+        priority,
       } = req.body;
 
-      // Validate required fields
-      if (!project_id || !Array.isArray(assigned_employees) || !description) {
+      // ✅ Validate required fields
+      if (
+        !project_id ||
+        !Array.isArray(assigned_employees) ||
+        !description ||
+        !status ||
+        !dueDate ||
+        !priority
+      ) {
         return res.status(400).json({
           success: false,
           message:
-            "Project ID, assigned employees array, and description are required",
+            "Project ID, assigned employees array, description, status, dueDate, and priority are required",
         });
       }
 
-      // Validate project exists
+      // ✅ Validate project exists
       const project = await Project.findById(project_id);
       if (!project) {
         return res.status(404).json({
@@ -1005,7 +1011,7 @@ export class AdminController {
         });
       }
 
-      // Validate all employee IDs are valid ObjectIds
+      // ✅ Validate all employee IDs are valid ObjectIds
       const validObjectIds = assigned_employees.every((id) =>
         Types.ObjectId.isValid(id)
       );
@@ -1019,7 +1025,7 @@ export class AdminController {
       // Convert string IDs to ObjectIds for querying
       const objectIds = assigned_employees.map((id) => new Types.ObjectId(id));
 
-      // Validate employees exist using _id
+      // ✅ Validate employees exist
       const validEmployees = await Employee.find({
         _id: { $in: objectIds },
       }).select("_id firstName lastName");
@@ -1037,13 +1043,23 @@ export class AdminController {
         });
       }
 
-      // ✅ Create new task with dueDate
+      // ✅ Validate priority values
+      const allowedPriorities = ["Low", "Medium", "High"];
+      if (!allowedPriorities.includes(priority)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid priority value. Allowed: Low, Medium, High",
+        });
+      }
+
+      // ✅ Create new task with all required fields
       const task = new Task({
         project_id: new Types.ObjectId(project_id),
         assigned_employees: objectIds,
         description,
         status,
-        dueDate, // ✅ Save dueDate
+        dueDate,
+        priority,
       });
 
       const savedTask = await task.save();
@@ -1157,6 +1173,22 @@ export class AdminController {
       // Update description if provided
       if (description) {
         updateData.description = description;
+      }
+
+      if (req.body.dueDate !== undefined) {
+        // Allow null to clear the date
+        if (req.body.dueDate === null) {
+          updateData.dueDate = null;
+        } else {
+          const parsedDate = new Date(req.body.dueDate);
+          if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({
+              success: false,
+              message: "Invalid date format",
+            });
+          }
+          updateData.dueDate = parsedDate;
+        }
       }
 
       // Update status if provided
