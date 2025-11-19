@@ -981,17 +981,17 @@ export class AdminController {
         project_id,
         assigned_employees,
         description,
-        status,
+        status = "Pending",
         dueDate,
         priority,
       } = req.body;
 
+      console.log(req.body);
       // ✅ Validate required fields
       if (
         !project_id ||
         !Array.isArray(assigned_employees) ||
         !description ||
-        !status ||
         !dueDate ||
         !priority
       ) {
@@ -1061,8 +1061,8 @@ export class AdminController {
         dueDate,
         priority,
       });
-
       const savedTask = await task.save();
+      console.log(savedTask);
 
       return res.status(201).json({
         success: true,
@@ -1087,11 +1087,17 @@ export class AdminController {
 
   async editTask(req: Request, res: Response): Promise<Response> {
     try {
-      const { id } = req.params; // ✅ read id from params
-      const { project_id, assigned_employees, description, status, priority } =
-        req.body;
+      const { id } = req.params; // ✅ Task ID from params
+      const {
+        project_id,
+        assigned_employees,
+        description,
+        status,
+        priority,
+        dueDate,
+      } = req.body;
 
-      // Validate id
+      // ✅ Validate task ID
       if (!id || !Types.ObjectId.isValid(id)) {
         return res.status(400).json({
           success: false,
@@ -1099,7 +1105,7 @@ export class AdminController {
         });
       }
 
-      // Find task
+      // ✅ Find existing task
       const task = await Task.findById(id);
       if (!task) {
         return res.status(404).json({
@@ -1108,10 +1114,10 @@ export class AdminController {
         });
       }
 
-      // Build update object
+      // ✅ Build update object
       const updateData: any = {};
 
-      // Update project if provided
+      // 🔹 Project update
       if (project_id) {
         if (!Types.ObjectId.isValid(project_id)) {
           return res.status(400).json({
@@ -1129,7 +1135,7 @@ export class AdminController {
         updateData.project_id = new Types.ObjectId(project_id);
       }
 
-      // Update employees if provided
+      // 🔹 Employees update
       if (assigned_employees) {
         if (!Array.isArray(assigned_employees)) {
           return res.status(400).json({
@@ -1138,8 +1144,8 @@ export class AdminController {
           });
         }
 
-        const validObjectIds = assigned_employees.every((id) =>
-          Types.ObjectId.isValid(id)
+        const validObjectIds = assigned_employees.every((empId) =>
+          Types.ObjectId.isValid(empId)
         );
         if (!validObjectIds) {
           return res.status(400).json({
@@ -1149,7 +1155,7 @@ export class AdminController {
         }
 
         const objectIds = assigned_employees.map(
-          (id) => new Types.ObjectId(id)
+          (empId) => new Types.ObjectId(empId)
         );
         const validEmployees = await Employee.find({
           _id: { $in: objectIds },
@@ -1170,28 +1176,24 @@ export class AdminController {
         updateData.assigned_employees = objectIds;
       }
 
-      // Update description if provided
+      // 🔹 Description update
       if (description) {
         updateData.description = description;
       }
 
-      if (req.body.dueDate !== undefined) {
-        // Allow null to clear the date
-        if (req.body.dueDate === null) {
-          updateData.dueDate = null;
-        } else {
-          const parsedDate = new Date(req.body.dueDate);
-          if (isNaN(parsedDate.getTime())) {
-            return res.status(400).json({
-              success: false,
-              message: "Invalid date format",
-            });
-          }
-          updateData.dueDate = parsedDate;
+      // 🔹 DueDate update (only valid date strings)
+      if (dueDate !== undefined) {
+        const parsedDate = new Date(dueDate);
+        if (isNaN(parsedDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid date format",
+          });
         }
+        updateData.dueDate = parsedDate;
       }
 
-      // Update status if provided
+      // 🔹 Status update
       if (status) {
         if (!["Pending", "In Progress", "Completed"].includes(status)) {
           return res.status(400).json({
@@ -1202,7 +1204,7 @@ export class AdminController {
         updateData.status = status;
       }
 
-      // ✅ Update priority if provided
+      // 🔹 Priority update
       if (priority) {
         if (!["Low", "Medium", "High"].includes(priority)) {
           return res.status(400).json({
@@ -1214,13 +1216,13 @@ export class AdminController {
         updateData.priority = priority;
       }
 
-      // Apply updates
+      // ✅ Apply updates
       Object.assign(task, updateData);
 
-      // Save updated task
+      // ✅ Save updated task
       const updatedTask = await task.save();
 
-      // Populate employee details for response
+      // ✅ Populate for response
       const populatedTask = await Task.findById(updatedTask._id)
         .populate("project_id", "name")
         .populate("assigned_employees", "firstName lastName")
