@@ -41,6 +41,7 @@ import Policy from "../models/policy";
 import Todo from "../models/todo";
 import LeaveForEmp from "../models/leaveforemp";
 import ProjectDisplay from "../models/project_display";
+import ProjectDocumentation from "../models/projectDocumentation";
 
 interface CreateScheduleDto {
   employee_ids: string[];
@@ -1195,7 +1196,17 @@ export class AdminController {
 
       // 🔹 Status update
       if (status) {
-        if (!["Pending", "In Progress", "Completed"].includes(status)) {
+        if (
+          ![
+            "Pending",
+            "In Progress",
+            "Completed",
+            "On Hold",
+            "Done",
+            "Assigned",
+            "Under Planning",
+          ].includes(status)
+        ) {
           return res.status(400).json({
             success: false,
             message: "Invalid status value",
@@ -1334,6 +1345,162 @@ export class AdminController {
       return res.status(500).json({
         success: false,
         message: "Error retrieving completed tasks",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  // projectDocumentaion creation
+
+  async addProjectDocumentation(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
+    try {
+      const { project_id, data } = req.body;
+
+      // ✅ Validate required fields
+      if (!project_id || !data) {
+        return res.status(400).json({
+          success: false,
+          message: "Project ID and documentation data are required",
+        });
+      }
+
+      // ✅ Validate project_id
+      if (!Types.ObjectId.isValid(project_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID",
+        });
+      }
+
+      // ✅ Ensure project exists
+      const project = await Project.findById(project_id);
+      if (!project) {
+        return res.status(404).json({
+          success: false,
+          message: "Project not found",
+        });
+      }
+
+      // ✅ Create documentation entry
+      const documentation = new ProjectDocumentation({
+        project_id: new Types.ObjectId(project_id),
+        data,
+        lastUpdate: new Date(), // auto-set to now
+      });
+
+      const savedDoc = await documentation.save();
+
+      return res.status(201).json({
+        success: true,
+        message: "Project documentation added successfully",
+        data: savedDoc,
+      });
+    } catch (error) {
+      console.error("Error in addProjectDocumentation:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error adding project documentation",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+  // projectDocumentaion edit
+  async editProjectDocumentation(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
+    try {
+      const { project_id } = req.params;
+      const { data } = req.body;
+
+      // ✅ Validate project_id
+      if (!project_id || !Types.ObjectId.isValid(project_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid project ID is required",
+        });
+      }
+
+      // ✅ Validate data
+      if (!data || typeof data !== "string") {
+        return res.status(400).json({
+          success: false,
+          message: "Documentation data must be a non-empty string",
+        });
+      }
+
+      // ✅ Find documentation for project
+      const documentation = await ProjectDocumentation.findOne({ project_id });
+      if (!documentation) {
+        return res.status(404).json({
+          success: false,
+          message: "Project documentation not found",
+        });
+      }
+
+      // ✅ Replace existing data with new data
+      documentation.data = data;
+
+      // ✅ Update lastUpdate timestamp
+      documentation.lastUpdate = new Date();
+
+      // ✅ Save changes
+      const updatedDoc = await documentation.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Project documentation updated successfully",
+        data: updatedDoc,
+      });
+    } catch (error) {
+      console.error("Error in editProjectDocumentation:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error editing project documentation",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  // get Project Documentation by project Id
+
+  async getProjectDocumentation(
+    req: Request,
+    res: Response
+  ): Promise<Response> {
+    try {
+      const { project_id } = req.params;
+
+      // ✅ Validate project_id
+      if (!project_id || !Types.ObjectId.isValid(project_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid project ID is required",
+        });
+      }
+
+      // ✅ Find documentation for project
+      const documentation = await ProjectDocumentation.findOne({ project_id });
+      if (!documentation) {
+        return res.status(404).json({
+          success: false,
+          message: "Project documentation not found",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Project documentation retrieved successfully",
+        data: documentation,
+      });
+    } catch (error) {
+      console.error("Error in getProjectDocumentation:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving project documentation",
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }

@@ -355,4 +355,18 @@ router.put("/todos/:todoId", authMiddleware, (req, res) => {
   adminController.editTodo(req, res);
 });
 
+// project documentation
+
+router.get("/project-panel/:project_id", (req, res) => {
+  adminController.getProjectDocumentation(req, res);
+});
+
+router.post("/project-panel", (req, res) => {
+  adminController.addProjectDocumentation(req, res);
+});
+
+router.put("/project-panel/:project_id", (req, res) => {
+  adminController.editProjectDocumentation(req, res);
+});
+
 export default router;
