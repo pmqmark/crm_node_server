@@ -26,9 +26,9 @@ router.post("/appy-leave", (req, res) => {
   employeeController.applyLeave(req, res);
 });
 
-// router.get("/my-projects", (req, res) => {
-//   employeeController.getAssignedProjectsWithTasks(req, res);
-// });
+router.get("/my-projects", (req, res) => {
+  employeeController.getAssignedProjects(req, res);
+});
 
 router.post("/assign-task", (req, res) => {
   employeeController.assignTask(req, res);
