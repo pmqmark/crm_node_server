@@ -2,11 +2,19 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface ITask extends Document {
   project_id: Schema.Types.ObjectId;
-  assigned_employees: string[];
+  assigned_employees: Schema.Types.ObjectId[]; // better to store ObjectIds
   description: string;
-  status: "Pending" | "In Progress" | "Completed" | "On Hold";
+  status:
+    | "Pending"
+    | "In Progress"
+    | "Completed"
+    | "On Hold"
+    | "Done"
+    | "Assigned"
+    | "Under Planning";
   dueDate?: Date;
   priority?: "Low" | "Medium" | "High";
+  createdBy: Schema.Types.ObjectId; // reference to Employee/User
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,7 +28,7 @@ const taskSchema = new Schema<ITask>(
     },
     assigned_employees: [
       {
-        type: String,
+        type: Schema.Types.ObjectId,
         ref: "Employee",
         required: true,
       },
@@ -40,14 +48,19 @@ const taskSchema = new Schema<ITask>(
         "Assigned",
         "Under Planning",
       ],
+      default: "Pending",
     },
     dueDate: {
       type: Date,
-      required: false,
     },
     priority: {
       type: String,
       enum: ["Low", "Medium", "High"],
+      default: "Medium",
+    },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "Employee", // or "User" depending on your auth model
       required: true,
     },
   },
@@ -56,9 +69,10 @@ const taskSchema = new Schema<ITask>(
   }
 );
 
-// Create indexes for better query performance
+// Indexes for better query performance
 taskSchema.index({ project_id: 1, status: 1 });
 taskSchema.index({ assigned_employees: 1 });
+taskSchema.index({ createdBy: 1 });
 
 const Task = mongoose.model<ITask>("Task", taskSchema);
 export default Task;
