@@ -976,7 +976,7 @@ export class AdminController {
     }
   }
 
-  async assignTask(req: Request, res: Response): Promise<Response> {
+  async assignTask(req: AuthRequest, res: Response): Promise<Response> {
     try {
       const {
         project_id,
@@ -987,7 +987,13 @@ export class AdminController {
         priority,
       } = req.body;
 
-      console.log(req.body);
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User ID is missing",
+        });
+      }
+
       // ✅ Validate required fields
       if (
         !project_id ||
@@ -1023,7 +1029,7 @@ export class AdminController {
         });
       }
 
-      // Convert string IDs to ObjectIds for querying
+      // Convert string IDs to ObjectIds
       const objectIds = assigned_employees.map((id) => new Types.ObjectId(id));
 
       // ✅ Validate employees exist
@@ -1053,7 +1059,7 @@ export class AdminController {
         });
       }
 
-      // ✅ Create new task with all required fields
+      // ✅ Create new task with createdBy reference
       const task = new Task({
         project_id: new Types.ObjectId(project_id),
         assigned_employees: objectIds,
@@ -1061,9 +1067,10 @@ export class AdminController {
         status,
         dueDate,
         priority,
+        createdBy: new Types.ObjectId(req.user.id), // 👈 logged-in user
       });
+
       const savedTask = await task.save();
-      console.log(savedTask);
 
       return res.status(201).json({
         success: true,

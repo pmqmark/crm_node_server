@@ -759,7 +759,7 @@ export class EmployeeController {
   //   }
   // }
 
-  async getAssignedProjectsWithTasks(
+  async getAssignedProjects(
     req: AuthRequest,
     res: Response
   ): Promise<Response> {
@@ -770,66 +770,54 @@ export class EmployeeController {
         });
       }
 
-      // Normalize to ObjectId
-      const employeeObjectId = new Types.ObjectId(req.user.id);
+      const employeeId = req.user.id; // still string since your project stores string IDs
 
-      // Step 1: Find projects where this employee is assigned
+      // ✅ Find projects where this employee is assigned
       const assignedProjects = await Project.find({
         $or: [
-          { teamMembers: employeeObjectId },
-          { teamLeaders: employeeObjectId },
-          { managers: employeeObjectId },
+          { teamMembers: employeeId },
+          { teamLeaders: employeeId },
+          { managers: employeeId },
         ],
       })
-        .populate<{ teamLeaders: IEmployee[] }>({
-          path: "teamLeaders",
-          model: "Employee",
-          select: "firstName lastName employee_id",
-          options: { limit: 1 },
-        })
-        .select("projectName startDate endDate teamLeaders status")
-        .sort({ startDate: 1 });
+        .populate("teamLeaders", "firstName lastName employee_id")
+        .populate("teamMembers", "firstName lastName employee_id")
+        .populate("managers", "firstName lastName employee_id")
+        .select(
+          "projectName startDate endDate teamLeaders teamMembers managers status"
+        )
+        .sort({ startDate: 1 })
+        .lean();
 
-      // Step 2: For each project, fetch tasks assigned to this employee
-      const projectsWithTasks = await Promise.all(
-        assignedProjects.map(async (project) => {
-          const leader = project.teamLeaders?.[0];
-
-          const myTasks = await Task.find({
-            project_id: project._id,
-            assigned_employees: employeeObjectId,
-          })
-            .select("description status priority dueDate")
-            .lean();
-
-          return {
-            projectName: project.projectName,
-            startDate: project.startDate,
-            endDate: project.endDate,
-            status: project.status,
-            teamLead: leader
-              ? {
-                  name: `${leader.firstName} ${leader.lastName}`,
-                  employeeId: leader.employee_id,
-                }
-              : {
-                  name: "No Lead Assigned",
-                  employeeId: null,
-                },
-            myTasks, // only tasks assigned to this employee
-          };
-        })
-      );
+      // ✅ Format response without tasks
+      const projects = assignedProjects.map((project: any) => ({
+        projectName: project.projectName,
+        startDate: project.startDate,
+        endDate: project.endDate,
+        status: project.status,
+        teamLeaders: (project.teamLeaders ?? []).map((leader: any) => ({
+          name: `${leader.firstName} ${leader.lastName}`,
+          employeeId: leader.employee_id,
+        })),
+        teamMembers: (project.teamMembers ?? []).map((member: any) => ({
+          name: `${member.firstName} ${member.lastName}`,
+          employeeId: member.employee_id,
+        })),
+        managers: (project.managers ?? []).map((manager: any) => ({
+          name: `${manager.firstName} ${manager.lastName}`,
+          employeeId: manager.employee_id,
+        })),
+      }));
 
       return res.status(200).json({
-        message: "Projects and tasks retrieved successfully",
-        count: projectsWithTasks.length,
-        data: projectsWithTasks,
+        message: "Projects retrieved successfully",
+        count: projects.length,
+        data: projects,
       });
     } catch (error) {
-      console.error("Error in getAssignedProjectsWithTasks:", error);
+      console.error("Error in getAssignedProjects:", error);
       return res.status(500).json({
-        message: "Error retrieving projects and tasks",
+        message: "Error retrieving projects",
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }
