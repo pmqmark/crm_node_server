@@ -836,15 +836,29 @@ export class EmployeeController {
 
       const employeeId = req.user.id;
 
-      // Fetch projects where employee is team member / leader / manager
-      const assignedProjects = await Project.find({
+      // --- PAGINATION IMPLEMENTATION START ---
+      // 1. Extract and Validate Pagination Parameters
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+
+      // 2. Define the Base Query
+      const baseQuery = {
         $or: [
           { teamMembers: employeeId },
           { teamLeaders: employeeId },
           { managers: employeeId },
         ],
-      })
-        .populate("client", "companyName") // ✅ get client name
+      };
+
+      // 3. Count Total Documents (for pagination metadata)
+      const totalProjects = await Project.countDocuments(baseQuery);
+      const totalPages = Math.ceil(totalProjects / limit);
+      // --- PAGINATION IMPLEMENTATION END ---
+
+      // 4. Fetch Projects with Skip and Limit
+      const assignedProjects = await Project.find(baseQuery)
+        .populate("client", "companyName")
         .populate("teamLeaders", "firstName lastName employee_id")
         .populate("teamMembers", "firstName lastName employee_id")
         .populate("managers", "firstName lastName employee_id")
@@ -852,10 +866,13 @@ export class EmployeeController {
           "projectName startDate endDate status priority projectValue projectDescription client teamLeaders teamMembers managers"
         )
         .sort({ startDate: 1 })
+        .skip(skip) // <-- Apply skip for offset
+        .limit(limit) // <-- Apply limit for page size
         .lean();
 
+      // 5. Format Projects
       const projects = assignedProjects.map((project: any) => ({
-        projectId: project._id, // ✅ include project id
+        projectId: project._id,
         projectName: project.projectName,
         projectDescription: project.projectDescription,
         priority: project.priority,
@@ -883,9 +900,13 @@ export class EmployeeController {
         })),
       }));
 
+      // 6. Success Response with Pagination Metadata
       return res.status(200).json({
         message: "Projects retrieved successfully",
-        count: projects.length,
+        count: projects.length, // Only the count of projects on the current page
+        totalProjects: totalProjects, // Total count across all pages
+        currentPage: page,
+        totalPages: totalPages,
         data: projects,
       });
     } catch (error) {
