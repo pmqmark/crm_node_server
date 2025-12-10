@@ -760,6 +760,69 @@ export class EmployeeController {
   //   }
   // }
 
+  // async getAssignedProjects(
+  //   req: AuthRequest,
+  //   res: Response
+  // ): Promise<Response> {
+  //   try {
+  //     if (!req.user || !req.user.id) {
+  //       return res.status(401).json({
+  //         message: "Unauthorized: User ID is missing",
+  //       });
+  //     }
+
+  //     const employeeId = req.user.id; // still string since your project stores string IDs
+
+  //     // ✅ Find projects where this employee is assigned
+  //     const assignedProjects = await Project.find({
+  //       $or: [
+  //         { teamMembers: employeeId },
+  //         { teamLeaders: employeeId },
+  //         { managers: employeeId },
+  //       ],
+  //     })
+  //       .populate("teamLeaders", "firstName lastName employee_id")
+  //       .populate("teamMembers", "firstName lastName employee_id")
+  //       .populate("managers", "firstName lastName employee_id")
+  //       .select(
+  //         "projectName startDate endDate teamLeaders teamMembers managers status"
+  //       )
+  //       .sort({ startDate: 1 })
+  //       .lean();
+
+  //     // ✅ Format response without tasks
+  //     const projects = assignedProjects.map((project: any) => ({
+  //       projectName: project.projectName,
+  //       startDate: project.startDate,
+  //       endDate: project.endDate,
+  //       status: project.status,
+  //       teamLeaders: (project.teamLeaders ?? []).map((leader: any) => ({
+  //         name: `${leader.firstName} ${leader.lastName}`,
+  //         employeeId: leader.employee_id,
+  //       })),
+  //       teamMembers: (project.teamMembers ?? []).map((member: any) => ({
+  //         name: `${member.firstName} ${member.lastName}`,
+  //         employeeId: member.employee_id,
+  //       })),
+  //       managers: (project.managers ?? []).map((manager: any) => ({
+  //         name: `${manager.firstName} ${manager.lastName}`,
+  //         employeeId: manager.employee_id,
+  //       })),
+  //     }));
+
+  //     return res.status(200).json({
+  //       message: "Projects retrieved successfully",
+  //       count: projects.length,
+  //       data: projects,
+  //     });
+  //   } catch (error) {
+  //     console.error("Error in getAssignedProjects:", error);
+  //     return res.status(500).json({
+  //       message: "Error retrieving projects",
+  //       error: error instanceof Error ? error.message : "Unknown error",
+  //     });
+  //   }
+  // }
   async getAssignedProjects(
     req: AuthRequest,
     res: Response
@@ -771,9 +834,9 @@ export class EmployeeController {
         });
       }
 
-      const employeeId = req.user.id; // still string since your project stores string IDs
+      const employeeId = req.user.id;
 
-      // ✅ Find projects where this employee is assigned
+      // Fetch projects where employee is team member / leader / manager
       const assignedProjects = await Project.find({
         $or: [
           { teamMembers: employeeId },
@@ -781,29 +844,39 @@ export class EmployeeController {
           { managers: employeeId },
         ],
       })
+        .populate("client", "companyName") // ✅ get client name
         .populate("teamLeaders", "firstName lastName employee_id")
         .populate("teamMembers", "firstName lastName employee_id")
         .populate("managers", "firstName lastName employee_id")
         .select(
-          "projectName startDate endDate teamLeaders teamMembers managers status"
+          "projectName startDate endDate status priority projectValue projectDescription client teamLeaders teamMembers managers"
         )
         .sort({ startDate: 1 })
         .lean();
 
-      // ✅ Format response without tasks
       const projects = assignedProjects.map((project: any) => ({
+        projectId: project._id, // ✅ include project id
         projectName: project.projectName,
+        projectDescription: project.projectDescription,
+        priority: project.priority,
+        projectValue: project.projectValue,
+        client: project.client
+          ? { name: project.client.companyName }
+          : { name: "Unknown Client" },
         startDate: project.startDate,
         endDate: project.endDate,
         status: project.status,
+
         teamLeaders: (project.teamLeaders ?? []).map((leader: any) => ({
           name: `${leader.firstName} ${leader.lastName}`,
           employeeId: leader.employee_id,
         })),
+
         teamMembers: (project.teamMembers ?? []).map((member: any) => ({
           name: `${member.firstName} ${member.lastName}`,
           employeeId: member.employee_id,
         })),
+
         managers: (project.managers ?? []).map((manager: any) => ({
           name: `${manager.firstName} ${manager.lastName}`,
           employeeId: manager.employee_id,
