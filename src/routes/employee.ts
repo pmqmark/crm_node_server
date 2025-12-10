@@ -175,4 +175,27 @@ router.get("/project-display/:project_id", (req, res) => {
   employeeController.getProjectDisplayById(req, res);
 });
 
+// get a projects task by project id
+router.get("/project-tasks/:projectId", (req, res) => {
+  employeeController.getTasksByProject(req, res);
+});
+
+// edit task : only status can change
+
+router.put("/edit-task/:taskId", (req, res) => {
+  employeeController.editTaskStatus(req, res);
+});
+
+router.get("/project-panel/:project_id", (req, res) => {
+  employeeController.getProjectDocumentation(req, res);
+});
+
+router.post("/project-panel", (req, res) => {
+  employeeController.addProjectDocumentation(req, res);
+});
+
+router.put("/project-panel/:project_id", (req, res) => {
+  employeeController.editProjectDocumentation(req, res);
+});
+
 export default router;
