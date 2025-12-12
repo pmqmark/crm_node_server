@@ -10,8 +10,8 @@ const adminController = new AdminController();
 const departmentcontroller = new DepartmentController();
 const employeeController = new EmployeeController();
 const clientController = new ClientController();
-// router.use(authMiddleware); //authMiddleware is the jwtMiddleware that verifies token
-// router.use(roleGuard(["Admin"])); //role based protected routes
+router.use(authMiddleware); //authMiddleware is the jwtMiddleware that verifies token
+router.use(roleGuard(["Admin"])); //role based protected routes
 
 router.post("/createadmin", (req, res, next) => {
   adminController.createAdmin(req, res);

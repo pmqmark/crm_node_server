@@ -3558,7 +3558,7 @@ export class AdminController {
 
   async listClients(req: Request, res: Response): Promise<Response> {
     try {
-      const clients = await Client.find().lean();
+      const clients = await Client.find({ isActive: true }).lean();
 
       const settledResults = await Promise.allSettled(
         clients?.map(async (client, index) => {
