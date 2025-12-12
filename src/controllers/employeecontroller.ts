@@ -258,7 +258,7 @@ export class EmployeeController {
 
   async listEmployees(req: Request, res: Response): Promise<Response> {
     try {
-      const employees = await Employee.find();
+      const employees = await Employee.find({ isActive: true });
 
       return res.status(200).json({
         message: "Employees retrieved successfully",
@@ -438,29 +438,83 @@ export class EmployeeController {
     }
   }
 
+  // async deleteEmployee(req: Request, res: Response): Promise<Response> {
+  //   try {
+  //     const { id } = req.body;
+
+  //     if (!id || !Types.ObjectId.isValid(id)) {
+  //       return res.status(400).json({
+  //         message: `Invalid ID format: ${id}`,
+  //       });
+  //     }
+
+  //     const employee = await Employee.findById(id);
+  //     if (!employee) {
+  //       return res.status(404).json({
+  //         message: "Employee not found",
+  //       });
+  //     }
+
+  //     await Employee.findByIdAndDelete(id);
+
+  //     return res.status(200).json({
+  //       message: "Employee deleted successfully",
+  //     });
+  //   } catch (error) {
+  //     return res.status(500).json({
+  //       message: "Error deleting employee",
+  //       error: error instanceof Error ? error.message : "Unknown error",
+  //     });
+  //   }
+  // }
+
   async deleteEmployee(req: Request, res: Response): Promise<Response> {
     try {
+      // 1. Input Validation: Retrieve ID from request body
       const { id } = req.body;
 
       if (!id || !Types.ObjectId.isValid(id)) {
         return res.status(400).json({
-          message: `Invalid ID format: ${id}`,
+          message: `Invalid employee ID format: ${id}`,
         });
       }
 
-      const employee = await Employee.findById(id);
+      const employeeObjectId = new Types.ObjectId(id);
+
+      // 2. Check if employee exists
+      const employee = await Employee.findById(employeeObjectId);
       if (!employee) {
         return res.status(404).json({
           message: "Employee not found",
         });
       }
 
-      await Employee.findByIdAndDelete(id);
+      // 3. Soft Delete the employee (SET isActive: false)
+      // NOTE: In a real system, you should add logic here to unassign the employee
+      // from all active tasks and projects *before* soft deleting them.
+      const softDeletedEmployee = await Employee.findByIdAndUpdate(
+        employeeObjectId,
+        { isActive: false },
+        { new: true }
+      );
 
+      if (!softDeletedEmployee) {
+        // This is a safeguard, unlikely if employee was found in step 2
+        return res.status(404).json({
+          message: "Employee not found during update.",
+        });
+      }
+
+      // 4. Success Response
       return res.status(200).json({
-        message: "Employee deleted successfully",
+        message: "Employee soft-deleted successfully (isActive set to false)",
+        data: {
+          id: softDeletedEmployee._id,
+          isActive: softDeletedEmployee.isActive,
+        },
       });
     } catch (error) {
+      console.error("Error soft-deleting employee:", error);
       return res.status(500).json({
         message: "Error deleting employee",
         error: error instanceof Error ? error.message : "Unknown error",
