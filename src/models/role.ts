@@ -12,6 +12,10 @@ const roleSchema = new Schema<IRole>({
     type: String,
     required: true,
   },
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
   permissions: [
     {
       type: String,
