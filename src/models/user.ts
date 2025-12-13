@@ -25,6 +25,11 @@ const userSchema = new Schema<IUser>(
       type: Date,
       default: null,
     },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
   { discriminatorKey: "role" }
 );

@@ -3098,6 +3098,55 @@ export class AdminController {
     }
   }
 
+  // async deleteRole(req: Request, res: Response): Promise<Response> {
+  //   try {
+  //     const { role_id } = req.params;
+
+  //     if (!role_id || !Types.ObjectId.isValid(role_id)) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: "Valid role ID is required",
+  //       });
+  //     }
+
+  //     // Check if role exists
+  //     const role = await Role.findById(role_id);
+  //     if (!role) {
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: "Role not found",
+  //       });
+  //     }
+
+  //     // Check if any employees are assigned to this role
+  //     const employeesCount = await Employee.countDocuments({
+  //       role_id: role_id,
+  //     });
+
+  //     if (employeesCount > 0) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: `Cannot delete role. ${employeesCount} employee(s) are currently assigned to this role`,
+  //       });
+  //     }
+
+  //     // Delete the role
+  //     const deletedRole = await Role.findByIdAndDelete(role_id);
+
+  //     return res.status(200).json({
+  //       success: true,
+  //       message: "Role deleted successfully",
+  //       data: deletedRole,
+  //     });
+  //   } catch (error) {
+  //     return res.status(500).json({
+  //       success: false,
+  //       message: "Error deleting role",
+  //       error: error instanceof Error ? error.message : "Unknown error",
+  //     });
+  //   }
+  // }
+
   async deleteRole(req: Request, res: Response): Promise<Response> {
     try {
       const { role_id } = req.params;
@@ -3109,7 +3158,7 @@ export class AdminController {
         });
       }
 
-      // Check if role exists
+      // 2. Check if role exists
       const role = await Role.findById(role_id);
       if (!role) {
         return res.status(404).json({
@@ -3118,27 +3167,46 @@ export class AdminController {
         });
       }
 
-      // Check if any employees are assigned to this role
+      // 3. Check if any employees are assigned to this role (PREVENTS HARD DELETE)
+      // You should keep this check, as soft deleting a role with active employees
+      // might lead to orphaned employees or errors in other parts of the system.
       const employeesCount = await Employee.countDocuments({
         role_id: role_id,
+        // You might also want to ensure these are active employees:
+        // isActive: true,
       });
 
       if (employeesCount > 0) {
         return res.status(400).json({
           success: false,
-          message: `Cannot delete role. ${employeesCount} employee(s) are currently assigned to this role`,
+          message: `Cannot delete role. ${employeesCount} employee(s) are currently assigned to this role. Please reassign them first.`,
         });
       }
 
-      // Delete the role
-      const deletedRole = await Role.findByIdAndDelete(role_id);
+      // 4. Soft Delete the role (SET isActive: false)
+      const softDeletedRole = await Role.findByIdAndUpdate(
+        role_id,
+        { isActive: false }, // <--- The soft delete operation
+        { new: true } // Return the updated document
+      );
 
+      if (!softDeletedRole) {
+        // This case should not happen if the role existed in step 2,
+        // but it's a good safety check.
+        return res.status(404).json({
+          success: false,
+          message: "Role not found during update (concurrent access issue).",
+        });
+      }
+
+      // 5. Success Response
       return res.status(200).json({
         success: true,
-        message: "Role deleted successfully",
-        data: deletedRole,
+        message: "Role soft-deleted successfully (isActive set to false)",
+        data: softDeletedRole,
       });
     } catch (error) {
+      console.error("Error soft-deleting role:", error);
       return res.status(500).json({
         success: false,
         message: "Error deleting role",
@@ -3490,7 +3558,7 @@ export class AdminController {
 
   async listClients(req: Request, res: Response): Promise<Response> {
     try {
-      const clients = await Client.find().lean();
+      const clients = await Client.find({ isActive: true }).lean();
 
       const settledResults = await Promise.allSettled(
         clients?.map(async (client, index) => {
@@ -3548,7 +3616,7 @@ export class AdminController {
 
   async listRoles(req: Request, res: Response): Promise<Response> {
     try {
-      const roles = await Role.find();
+      const roles = await Role.find({ isActive: true });
 
       return res.status(200).json({
         message: "clients retrieved successfully",
