@@ -250,7 +250,7 @@ export class DepartmentController {
       // Before creating new project check for duplication
       const existingProject = await Project.findOne({
         projectName: projectData.projectName,
-        client: projectData.client,
+        // client: projectData.client,
       });
 
       if (existingProject) {
