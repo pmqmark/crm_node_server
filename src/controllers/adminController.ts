@@ -3020,12 +3020,12 @@ export class AdminController {
 
       const normalizedEmail = clientData.email.trim().toLowerCase();
       //to avoid duplication of clients
-      const existingUser = await User.findOne({ email: normalizedEmail });
-      if (existingUser) {
-        return res.status(409).json({
-          message: "Client already exist",
-        });
-      }
+      // const existingUser = await User.findOne({ email: normalizedEmail });
+      // if (existingUser) {
+      //   return res.status(409).json({
+      //     message: "Client already exist",
+      //   });
+      // }
 
       const hashedPassword = await bcrypt.hash(clientData.password, 10);
 
