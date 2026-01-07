@@ -532,7 +532,7 @@ export class EmployeeController {
 
       const { leaveType, fromDate, toDate, reason } = req.body;
 
-      // Validate required fields
+      // 2. Required Fields Validation
       if (!leaveType || !fromDate || !toDate || !reason) {
         return res.status(400).json({
           message:
@@ -540,38 +540,49 @@ export class EmployeeController {
         });
       }
 
-      // Validate leave type
+      // 3. Enum Validation
       if (!Object.values(LeaveType).includes(leaveType)) {
         return res.status(400).json({
-          message:
-            "Invalid leave type. Must be one of: Medical Leave, Casual Leave, or Vacation",
+          message: `Invalid leave type. Must be one of: ${Object.values(
+            LeaveType
+          ).join(", ")}`,
         });
       }
 
-      // Convert dates
+      // 4. Date Conversion & Normalization
+      // We set time to midnight to ensure comparisons are based on the calendar date
       const startDate = new Date(fromDate);
-      const endDate = new Date(toDate);
+      startDate.setHours(0, 0, 0, 0);
 
-      // Validate dates
+      const endDate = new Date(toDate);
+      endDate.setHours(0, 0, 0, 0);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // 5. Date Logic Validation
       if (startDate > endDate) {
         return res.status(400).json({
-          message: "End date must be after start date",
+          message: "End date must be after or equal to start date",
         });
       }
 
-      if (startDate < new Date()) {
+      if (startDate < today) {
         return res.status(400).json({
           message: "Cannot apply leave for past dates",
         });
       }
 
-      // Calculate number of days
+      // 6. Calculate Number of Days
+      // (End - Start) gives difference in ms. Adding 1 ensures same-day leave equals 1 day.
       const timeDiff = endDate.getTime() - startDate.getTime();
-      const numberOfDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+      const numberOfDays = Math.round(timeDiff / (1000 * 3600 * 24)) + 1;
 
-      // Check for existing leave in date range
+      // 7. Check for Overlapping Leave
+      // Checks if any existing leave period overlaps with the requested [startDate, endDate]
       const existingLeave = await Leave.findOne({
         employee_id: req.user.id,
+        status: { $ne: "Rejected" }, // Don't block if the previous request was rejected
         $or: [
           {
             fromDate: { $lte: endDate },
@@ -582,11 +593,12 @@ export class EmployeeController {
 
       if (existingLeave) {
         return res.status(400).json({
-          message: "You already have a leave request for these dates",
+          message:
+            "You already have an active leave request covering these dates",
         });
       }
 
-      // Create leave request
+      // 8. Create Leave Record
       const leave = await Leave.create({
         employee_id: req.user.id,
         leaveType,
@@ -602,6 +614,7 @@ export class EmployeeController {
         data: leave,
       });
     } catch (error) {
+      console.error("Leave Application Error:", error);
       return res.status(500).json({
         message: "Error applying for leave",
         error: error instanceof Error ? error.message : "Unknown error",
