@@ -1,24 +1,25 @@
-import mongoose, { Schema, Document } from 'mongoose';
-import {IUser, IAdmin, IEmployee} from "../dtos/userdto"
-import User from './user'
+import mongoose, { Schema, Document } from "mongoose";
+import { IUser, IAdmin, IEmployee } from "../dtos/userdto";
+import User from "./user";
 
 // Counter schema for employee IDs
 const EmployeeCounterSchema = new Schema({
-  name: { 
-    type: String, 
+  name: {
+    type: String,
     required: true,
-    default: 'employeeId'
+    default: "employeeId",
   },
-  value: { 
-    type: Number, 
+  value: {
+    type: Number,
     required: true,
-    default: 1199  // Setting to 1199 so first increment gives 1200
-  }
+    default: 1199, // Setting to 1199 so first increment gives 1200
+  },
 });
 
 // Create the counter model if it doesn't exist
-const EmployeeCounter = mongoose.models.EmployeeCounter || 
-  mongoose.model('EmployeeCounter', EmployeeCounterSchema, 'employeecounters');
+const EmployeeCounter =
+  mongoose.models.EmployeeCounter ||
+  mongoose.model("EmployeeCounter", EmployeeCounterSchema, "employeecounters");
 
 const employeeSchema = new Schema<IEmployee>({
   employee_id: {
@@ -39,37 +40,73 @@ const employeeSchema = new Schema<IEmployee>({
   },
   department_id: {
     type: Schema.Types.ObjectId,
-    ref: 'Department',
+    ref: "Department",
     required: false,
   },
   role_id: {
     type: Schema.Types.ObjectId,
-    ref: 'Role',
+    ref: "Role",
     required: false,
   },
   hireDate: {
     type: Date,
     required: true,
   },
-  dob:{
+  dob: {
+    type: Date,
+    required: true,
+  },
+  gender: {
+    type: String,
+    required: true,
+  },
+  nationality: {
+    type: String,
+    required: true,
+  },
+  photoUrl: {
+    type: String,
+    required: true,
+  },
+  emiratesIdUrl: {
+    type: String,
+    required: true,
+  },
+  emiratesIssueDate: {
+    type: Date,
+    required: true,
+  },
+  emiratesExpiryDate: {
+    type: Date,
+    required: true,
+  },
+  passportUrl: {
+    type: String,
+    required: true,
+  },
+  passportIssueDate: {
+    type: Date,
+    required: true,
+  },
+  passportExpiryDate: {
     type: Date,
     required: true,
   },
   addressline1: {
     type: String,
-    required: true,
+    required: false,
   },
   addressline2: {
     type: String,
-    required: true,
+    required: false,
   },
   city: {
     type: String,
-    required: true,
+    required: false,
   },
   state: {
     type: String,
-    required: true,
+    required: false,
   },
   country: {
     type: String,
@@ -77,58 +114,58 @@ const employeeSchema = new Schema<IEmployee>({
   },
   postalcode: {
     type: String,
-    required: true,
+    required: false,
   },
   employeebio: {
     type: String,
-    required: true,
+    required: false,
   },
   status: {
     type: String,
-    enum: ['Full-Time', 'Contract', 'Probation', 'WFH'],
-    required: true
-},
-leaveRef: {
-  type: Schema.Types.ObjectId,
-  ref: 'LeaveForEmp',
-  default: new mongoose.Types.ObjectId('681a69cae6138be704aa52d9'),
-  required: true
-}
+    enum: ["Full-Time", "Contract", "Probation", "WFH"],
+    required: true,
+  },
+  leaveRef: {
+    type: Schema.Types.ObjectId,
+    ref: "LeaveForEmp",
+    default: new mongoose.Types.ObjectId("681a69cae6138be704aa52d9"),
+    required: true,
+  },
 });
 
 // Pre-save middleware to generate employee_id
-employeeSchema.pre('save', async function(this: IEmployee & Document, next) {
+employeeSchema.pre("save", async function (this: IEmployee & Document, next) {
   try {
     if (this.isNew && !this.employee_id) {
       let isUnique = false;
-      let employeeId = '';
+      let employeeId = "";
       let attempts = 0;
       const maxAttempts = 10; // Prevent infinite loops
-      
+
       // Try to generate a unique ID
       while (!isUnique && attempts < maxAttempts) {
         // Get counter or create it if it doesn't exist
         const counter = await EmployeeCounter.findOneAndUpdate(
-          { name: 'employeeId' },
+          { name: "employeeId" },
           { $inc: { value: 1 } },
-          { 
-            new: true, 
+          {
+            new: true,
             upsert: true,
-            setDefaultsOnInsert: true
-          }
+            setDefaultsOnInsert: true,
+          },
         );
-        
+
         if (!counter) {
-          throw new Error('Failed to generate employee ID');
+          throw new Error("Failed to generate employee ID");
         }
-        
+
         employeeId = `QMARK${counter.value}`;
-        
+
         // Check if this ID already exists
-        const existingEmployee = await mongoose.model('Employee').findOne({ 
-          employee_id: employeeId 
+        const existingEmployee = await mongoose.model("Employee").findOne({
+          employee_id: employeeId,
         });
-        
+
         if (!existingEmployee) {
           // We found a unique ID
           isUnique = true;
@@ -138,9 +175,11 @@ employeeSchema.pre('save', async function(this: IEmployee & Document, next) {
           attempts++;
         }
       }
-      
+
       if (!isUnique) {
-        throw new Error(`Could not generate a unique employee ID after ${maxAttempts} attempts`);
+        throw new Error(
+          `Could not generate a unique employee ID after ${maxAttempts} attempts`,
+        );
       }
     }
     next();
@@ -152,6 +191,6 @@ employeeSchema.pre('save', async function(this: IEmployee & Document, next) {
 // Create a unique index on employee_id
 employeeSchema.index({ employee_id: 1 }, { unique: true });
 
-const Employee = User.discriminator<IEmployee>('Employee', employeeSchema);
+const Employee = User.discriminator<IEmployee>("Employee", employeeSchema);
 
 export default Employee;
