@@ -4,16 +4,12 @@ const userSchema = new Schema<IUser>(
   {
     email: {
       type: String,
-      required: function (this: any) {
-        return this.role !== "employee";
-      },
+      required: false,
     },
     password: {
       // Moved to base schema
       type: String,
-      required: function (this: any) {
-        return this.role !== "employee";
-      },
+      required: false,
     },
     role: {
       type: String,

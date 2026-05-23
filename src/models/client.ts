@@ -3,6 +3,15 @@ import User from "./user";
 import { IUser, IAdmin, IClient, IEmployee } from "../dtos/userdto";
 
 const clientSchema = new Schema<IClient>({
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
   companyName: {
     type: String,
     // required: true,since no need of company name
