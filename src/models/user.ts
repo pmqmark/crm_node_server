@@ -4,13 +4,16 @@ const userSchema = new Schema<IUser>(
   {
     email: {
       type: String,
-      required: true,
-      unique: true,
+      required: function (this: any) {
+        return this.role !== "employee";
+      },
     },
     password: {
       // Moved to base schema
       type: String,
-      required: true,
+      required: function (this: any) {
+        return this.role !== "employee";
+      },
     },
     role: {
       type: String,
@@ -33,6 +36,8 @@ const userSchema = new Schema<IUser>(
   },
   { discriminatorKey: "role" }
 );
+
+userSchema.index({ email: 1 }, { unique: true, sparse: true });
 
 // Create the base model
 const User = mongoose.model<IUser>("User", userSchema);

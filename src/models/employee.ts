@@ -28,15 +28,15 @@ const employeeSchema = new Schema<IEmployee>({
   },
   firstName: {
     type: String,
-    required: true,
+    required: false,
   },
   lastName: {
     type: String,
-    required: true,
+    required: false,
   },
   phone: {
     type: String,
-    required: true,
+    required: false,
   },
   department_id: {
     type: Schema.Types.ObjectId,
@@ -50,11 +50,11 @@ const employeeSchema = new Schema<IEmployee>({
   },
   hireDate: {
     type: Date,
-    required: true,
+    required: false,
   },
   dob: {
     type: Date,
-    required: true,
+    required: false,
   },
   gender: {
     type: String,
@@ -66,31 +66,31 @@ const employeeSchema = new Schema<IEmployee>({
   },
   photoUrl: {
     type: String,
-    required: true,
+    required: false,
   },
   emiratesIdUrl: {
     type: String,
-    required: true,
+    required: false,
   },
   emiratesIssueDate: {
     type: Date,
-    required: true,
+    required: false,
   },
   emiratesExpiryDate: {
     type: Date,
-    required: true,
+    required: false,
   },
   passportUrl: {
     type: String,
-    required: true,
+    required: false,
   },
   passportIssueDate: {
     type: Date,
-    required: true,
+    required: false,
   },
   passportExpiryDate: {
     type: Date,
-    required: true,
+    required: false,
   },
   addressline1: {
     type: String,
@@ -110,7 +110,7 @@ const employeeSchema = new Schema<IEmployee>({
   },
   country: {
     type: String,
-    required: true,
+    required: false,
   },
   postalcode: {
     type: String,

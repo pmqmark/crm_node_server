@@ -3219,49 +3219,39 @@ export class AdminController {
     try {
       const employeeData: CreateEmployeeDto = req.body;
 
-      if (
-        !employeeData?.email ||
-        !employeeData?.password ||
-        !employeeData?.firstName ||
-        !employeeData?.lastName ||
-        !employeeData?.phone ||
-        !employeeData?.dob ||
-        !employeeData?.hireDate ||
-        !employeeData?.gender ||
-        !employeeData?.nationality ||
-        !employeeData?.photoUrl ||
-        !employeeData?.emiratesIdUrl ||
-        !employeeData?.emiratesIssueDate ||
-        !employeeData?.emiratesExpiryDate ||
-        !employeeData?.passportUrl ||
-        !employeeData?.passportIssueDate ||
-        !employeeData?.passportExpiryDate ||
-        !employeeData?.country
-      ) {
+      if (!employeeData?.gender || !employeeData?.nationality) {
         return res.status(400).json({
           message:
-            "Missing required employee fields. firstName, lastName, phone, dob, hireDate, gender, nationality, country, photoUrl, emiratesIdUrl, emiratesIssueDate, emiratesExpiryDate, passportUrl, passportIssueDate, passportExpiryDate and password are required.",
+            "Missing required employee fields. gender and nationality are required.",
         });
       }
 
-      const normalizedEmail = employeeData.email.trim().toLowerCase();
+      const providedEmail = typeof employeeData.email === "string"
+        ? employeeData.email.trim()
+        : "";
+      let normalizedEmail: string | undefined;
 
-      // Prevent duplicate accounts across all user types
-      const existingUser = await User.findOne({ email: normalizedEmail });
-      if (existingUser) {
-        return res.status(409).json({
-          message: "An account with this email already exists",
-        });
+      if (providedEmail) {
+        normalizedEmail = providedEmail.toLowerCase();
+
+        const existingUser = await User.findOne({ email: normalizedEmail });
+        if (existingUser) {
+          return res.status(409).json({
+            message: "An account with this email already exists",
+          });
+        }
       }
 
-      // No need to generate employee_id, it's handled by middleware
-      const hashedPassword = await bcrypt.hash(employeeData.password, 10);
+      let hashedPassword: string | undefined;
+      if (employeeData.password) {
+        hashedPassword = await bcrypt.hash(employeeData.password, 10);
+      }
 
       const employee = new Employee({
         firstName: employeeData.firstName,
         lastName: employeeData.lastName,
-        email: normalizedEmail,
-        password: hashedPassword,
+        ...(normalizedEmail && { email: normalizedEmail }),
+        ...(hashedPassword && { password: hashedPassword }),
         phone: employeeData.phone,
         hireDate: employeeData.hireDate,
         dob: employeeData.dob,
