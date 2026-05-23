@@ -56,18 +56,21 @@ export class AuthService {
 
       const usr = await User.findOne({ email, isActive: true });
 
-      if (!usr) {
+      const usrPassword = usr?.password;
+      const usrEmail = usr?.email;
+
+      if (!usr || !usrPassword || !usrEmail) {
         throw new Error("Invalid credentials");
       }
 
-      const isPasswordValid = await bcrypt.compare(password, usr.password);
+      const isPasswordValid = await bcrypt.compare(password, usrPassword);
       if (!isPasswordValid) {
         throw new Error("Invalid credentials");
       }
 
       const verifieduser: validitatedUser = {
         id: usr._id,
-        email: usr.email,
+        email: usrEmail,
         role: usr.role,
       };
 

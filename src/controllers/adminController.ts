@@ -265,14 +265,14 @@ export class AdminController {
           });
         }
         updateObj.client = new mongoose.Schema.Types.ObjectId(
-          updateData.client
+          updateData.client,
         );
       }
 
       // Update team members if provided
       if (updateData.teamMembers) {
         const validMembers = updateData.teamMembers.filter((id) =>
-          mongoose.Types.ObjectId.isValid(id)
+          mongoose.Types.ObjectId.isValid(id),
         );
         const members = await Employee.find({ _id: { $in: validMembers } });
         if (members.length !== validMembers.length) {
@@ -282,14 +282,14 @@ export class AdminController {
           });
         }
         updateObj.teamMembers = validMembers.map(
-          (id) => new mongoose.Schema.Types.ObjectId(id)
+          (id) => new mongoose.Schema.Types.ObjectId(id),
         );
       }
 
       // Update team leaders if provided
       if (updateData.teamLeaders) {
         const validLeaders = updateData.teamLeaders.filter((id) =>
-          mongoose.Types.ObjectId.isValid(id)
+          mongoose.Types.ObjectId.isValid(id),
         );
         const leaders = await Employee.find({ _id: { $in: validLeaders } });
         if (leaders.length !== validLeaders.length) {
@@ -299,14 +299,14 @@ export class AdminController {
           });
         }
         updateObj.teamLeaders = validLeaders.map(
-          (id) => new mongoose.Schema.Types.ObjectId(id)
+          (id) => new mongoose.Schema.Types.ObjectId(id),
         );
       }
 
       // Update managers if provided
       if (updateData.managers) {
         const validManagers = updateData.managers.filter((id) =>
-          mongoose.Types.ObjectId.isValid(id)
+          mongoose.Types.ObjectId.isValid(id),
         );
         const managers = await Employee.find({ _id: { $in: validManagers } });
         if (managers.length !== validManagers.length) {
@@ -316,7 +316,7 @@ export class AdminController {
           });
         }
         updateObj.managers = validManagers.map(
-          (id) => new mongoose.Schema.Types.ObjectId(id)
+          (id) => new mongoose.Schema.Types.ObjectId(id),
         );
       }
 
@@ -329,7 +329,7 @@ export class AdminController {
       const updatedProject = await Project.findByIdAndUpdate(
         updateData.project_id,
         { $set: updateObj },
-        { new: true }
+        { new: true },
       ).populate([
         { path: "client", select: "companyName" },
         { path: "teamMembers", select: "firstName lastName" },
@@ -533,7 +533,7 @@ export class AdminController {
       const updatedRole = await Role.findByIdAndUpdate(
         role_id,
         { $set: updateData },
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       );
 
       return res.status(200).json({
@@ -648,7 +648,7 @@ export class AdminController {
 
       // Get project details
       const project = await Project.findById(project_id).select(
-        "projectName status teamLeaders teamMembers managers"
+        "projectName status teamLeaders teamMembers managers",
       );
 
       if (!project) {
@@ -681,7 +681,7 @@ export class AdminController {
 
       // Create roles map
       const rolesMap = new Map(
-        roles.map((role) => [role._id.toString(), role.name])
+        roles.map((role) => [role._id.toString(), role.name]),
       );
 
       // Get managers details
@@ -765,7 +765,7 @@ export class AdminController {
             teamMembers: new Types.ObjectId(employee_id),
           },
         },
-        { new: true }
+        { new: true },
       );
 
       return res.status(200).json({
@@ -828,7 +828,7 @@ export class AdminController {
             teamLeaders: new Types.ObjectId(employee_id),
           },
         },
-        { new: true }
+        { new: true },
       );
 
       return res.status(200).json({
@@ -891,7 +891,7 @@ export class AdminController {
             managers: new Types.ObjectId(employee_id),
           },
         },
-        { new: true }
+        { new: true },
       );
 
       return res.status(200).json({
@@ -1020,7 +1020,7 @@ export class AdminController {
 
       // ✅ Validate all employee IDs are valid ObjectIds
       const validObjectIds = assigned_employees.every((id) =>
-        Types.ObjectId.isValid(id)
+        Types.ObjectId.isValid(id),
       );
       if (!validObjectIds) {
         return res.status(400).json({
@@ -1040,7 +1040,7 @@ export class AdminController {
       if (validEmployees.length !== assigned_employees.length) {
         const foundIds = validEmployees.map((emp) => emp._id.toString());
         const invalidIds = assigned_employees.filter(
-          (id) => !foundIds.includes(id.toString())
+          (id) => !foundIds.includes(id.toString()),
         );
 
         return res.status(400).json({
@@ -1153,7 +1153,7 @@ export class AdminController {
         }
 
         const validObjectIds = assigned_employees.every((empId) =>
-          Types.ObjectId.isValid(empId)
+          Types.ObjectId.isValid(empId),
         );
         if (!validObjectIds) {
           return res.status(400).json({
@@ -1163,7 +1163,7 @@ export class AdminController {
         }
 
         const objectIds = assigned_employees.map(
-          (empId) => new Types.ObjectId(empId)
+          (empId) => new Types.ObjectId(empId),
         );
         const validEmployees = await Employee.find({
           _id: { $in: objectIds },
@@ -1172,7 +1172,7 @@ export class AdminController {
         if (validEmployees.length !== assigned_employees.length) {
           const foundIds = validEmployees.map((emp) => emp._id.toString());
           const invalidIds = assigned_employees.filter(
-            (id) => !foundIds.includes(id.toString())
+            (id) => !foundIds.includes(id.toString()),
           );
           return res.status(400).json({
             success: false,
@@ -1299,7 +1299,7 @@ export class AdminController {
 
   async getLatestCompletedTasks(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const { project_id } = req.body;
@@ -1325,7 +1325,7 @@ export class AdminController {
       })
         .populate<{ assigned_employees: ITaskEmployee[] }>(
           "assigned_employees",
-          "firstName lastName"
+          "firstName lastName",
         )
         .select("description assigned_employees completed_at created_at")
         .sort({ completed_at: -1 })
@@ -1361,7 +1361,7 @@ export class AdminController {
 
   async addProjectDocumentation(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const { project_id, data } = req.body;
@@ -1417,7 +1417,7 @@ export class AdminController {
   // projectDocumentaion edit
   async editProjectDocumentation(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const { project_id } = req.params;
@@ -1476,7 +1476,7 @@ export class AdminController {
 
   async getProjectDocumentation(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const { project_id } = req.params;
@@ -1554,7 +1554,7 @@ export class AdminController {
   }
   async getTodaysPunchedEmployees(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const today = new Date();
@@ -2033,7 +2033,7 @@ export class AdminController {
               leaveRef: savedLeave._id,
             },
           },
-          { new: true }
+          { new: true },
         );
       }
 
@@ -2095,7 +2095,7 @@ export class AdminController {
             updatedAt: new Date(),
           },
         },
-        { new: true }
+        { new: true },
       );
 
       if (!updatedPolicy) {
@@ -2154,7 +2154,7 @@ export class AdminController {
               updatedAt: new Date(),
             },
           },
-          { new: true }
+          { new: true },
         );
 
         return res.status(200).json({
@@ -2282,7 +2282,7 @@ export class AdminController {
         {
           new: true,
           runValidators: true,
-        }
+        },
       ).populate([
         { path: "client_id", select: "companyName contactPerson email" },
         { path: "project_id", select: "projectName" },
@@ -2488,7 +2488,7 @@ export class AdminController {
             updatedAt: new Date(),
           },
         },
-        { new: true }
+        { new: true },
       );
 
       return res.status(200).json({
@@ -2533,7 +2533,7 @@ export class AdminController {
 
       // Get basic project details
       const project = await Project.findById(project_id).select(
-        "projectName status startDate endDate"
+        "projectName status startDate endDate",
       );
 
       return res.status(200).json({
@@ -2686,7 +2686,7 @@ export class AdminController {
       const updatedLeave = await LeaveForEmp.findByIdAndUpdate(
         id,
         { $set: updateData },
-        { new: true }
+        { new: true },
       );
 
       return res.status(200).json({
@@ -2706,7 +2706,7 @@ export class AdminController {
 
   async getProjectTaskStatistics(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const { project_id } = req.body;
@@ -2910,7 +2910,7 @@ export class AdminController {
 
       // Create employee lookup map
       const employeeMap = new Map(
-        employees.map((emp) => [emp.employee_id, emp])
+        employees.map((emp) => [emp.employee_id, emp]),
       );
 
       // Combine attendance logs with employee details
@@ -2985,7 +2985,7 @@ export class AdminController {
             ...(comments && { comments }),
           },
         },
-        { new: true }
+        { new: true },
       );
 
       // Get employee details for response
@@ -3187,7 +3187,7 @@ export class AdminController {
       const softDeletedRole = await Role.findByIdAndUpdate(
         role_id,
         { isActive: false }, // <--- The soft delete operation
-        { new: true } // Return the updated document
+        { new: true }, // Return the updated document
       );
 
       if (!softDeletedRole) {
@@ -3219,34 +3219,51 @@ export class AdminController {
     try {
       const employeeData: CreateEmployeeDto = req.body;
 
-      if (!employeeData?.email || !employeeData?.password) {
+      if (!employeeData?.gender || !employeeData?.nationality) {
         return res.status(400).json({
-          message: "Email and password are required",
+          message:
+            "Missing required employee fields. gender and nationality are required.",
         });
       }
 
-      const normalizedEmail = employeeData.email.trim().toLowerCase();
+      const providedEmail = typeof employeeData.email === "string"
+        ? employeeData.email.trim()
+        : "";
+      let normalizedEmail: string | undefined;
 
-      // Prevent duplicate accounts across all user types
-      const existingUser = await User.findOne({ email: normalizedEmail });
-      if (existingUser) {
-        return res.status(409).json({
-          message: "An account with this email already exists",
-        });
+      if (providedEmail) {
+        normalizedEmail = providedEmail.toLowerCase();
+
+        const existingUser = await User.findOne({ email: normalizedEmail });
+        if (existingUser) {
+          return res.status(409).json({
+            message: "An account with this email already exists",
+          });
+        }
       }
 
-      // No need to generate employee_id, it's handled by middleware
-      const hashedPassword = await bcrypt.hash(employeeData.password, 10);
+      let hashedPassword: string | undefined;
+      if (employeeData.password) {
+        hashedPassword = await bcrypt.hash(employeeData.password, 10);
+      }
 
       const employee = new Employee({
-        // employee_id is not needed here, it will be auto-generated
         firstName: employeeData.firstName,
         lastName: employeeData.lastName,
-        email: normalizedEmail,
-        password: hashedPassword,
+        ...(normalizedEmail && { email: normalizedEmail }),
+        ...(hashedPassword && { password: hashedPassword }),
         phone: employeeData.phone,
         hireDate: employeeData.hireDate,
         dob: employeeData.dob,
+        gender: employeeData.gender,
+        nationality: employeeData.nationality,
+        photoUrl: employeeData.photoUrl,
+        emiratesIdUrl: employeeData.emiratesIdUrl,
+        emiratesIssueDate: employeeData.emiratesIssueDate,
+        emiratesExpiryDate: employeeData.emiratesExpiryDate,
+        passportUrl: employeeData.passportUrl,
+        passportIssueDate: employeeData.passportIssueDate,
+        passportExpiryDate: employeeData.passportExpiryDate,
         addressline1: employeeData.addressline1,
         addressline2: employeeData.addressline2,
         city: employeeData.city,
@@ -3320,7 +3337,7 @@ export class AdminController {
 
       const weeklyStats = await this.getAttendanceStats(
         startOfWeek,
-        new Date()
+        new Date(),
       );
 
       return res.status(200).json({
@@ -3344,7 +3361,7 @@ export class AdminController {
 
       const monthlyStats = await this.getAttendanceStats(
         startOfMonth,
-        new Date()
+        new Date(),
       );
 
       return res.status(200).json({
@@ -3363,7 +3380,7 @@ export class AdminController {
 
   private async getAttendanceStats(
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): Promise<AttendanceStats> {
     try {
       // Get total number of employees
@@ -3479,7 +3496,7 @@ export class AdminController {
 
       if (departmentData.manager_id) {
         const managerExists = await Employee.findById(
-          departmentData.manager_id
+          departmentData.manager_id,
         );
         if (!managerExists) {
           throw new Error("Invalid manager_id. Employee does not exist.");
@@ -3570,12 +3587,12 @@ export class AdminController {
               p?.status === "Completed"
                 ? 100
                 : p?.status === "In Progress"
-                ? 50
-                : 0,
+                  ? 50
+                  : 0,
           }));
 
           return { ...client, projects: altProjects };
-        })
+        }),
       );
 
       const result = settledResults
@@ -3693,7 +3710,7 @@ export class AdminController {
 
       // Create employee lookup map
       const employeeMap = new Map(
-        employees.map((emp) => [emp.employee_id.toString(), emp])
+        employees.map((emp) => [emp.employee_id.toString(), emp]),
       );
 
       // Combine leave data with employee details
@@ -3713,13 +3730,13 @@ export class AdminController {
           .length,
         byType: {
           medical: enrichedLeaves.filter(
-            (leave) => leave.leaveType === LeaveType.MEDICAL
+            (leave) => leave.leaveType === LeaveType.MEDICAL,
           ).length,
           casual: enrichedLeaves.filter(
-            (leave) => leave.leaveType === LeaveType.CASUAL
+            (leave) => leave.leaveType === LeaveType.CASUAL,
           ).length,
           vacation: enrichedLeaves.filter(
-            (leave) => leave.leaveType === LeaveType.VACATION
+            (leave) => leave.leaveType === LeaveType.VACATION,
           ).length,
         },
       };
@@ -3748,7 +3765,7 @@ export class AdminController {
       if (status) {
         if (
           !["Pending", "In Progress", "Resolved", "Closed"].includes(
-            status as string
+            status as string,
           )
         ) {
           return res.status(400).json({
@@ -4099,34 +4116,34 @@ export class AdminController {
 
       const commentUserIds = [
         ...new Set(
-          ticket.comments.map((comment) => comment.createdBy.toString())
+          ticket.comments.map((comment) => comment.createdBy.toString()),
         ),
       ];
 
       const [admins, employees, clients] = await Promise.all([
         Admin.find({ _id: { $in: commentUserIds } }).select("_id"),
         Employee.find({ _id: { $in: commentUserIds } }).select(
-          "_id firstName lastName"
+          "_id firstName lastName",
         ),
         Client.find({ _id: { $in: commentUserIds } }).select(
-          "_id companyName contactPerson"
+          "_id companyName contactPerson",
         ),
       ]);
 
       const adminMap = new Map(
-        admins.map((admin) => [admin._id.toString(), "Admin"])
+        admins.map((admin) => [admin._id.toString(), "Admin"]),
       );
       const employeeMap = new Map(
         employees.map((emp) => [
           emp._id.toString(),
           `${emp.firstName} ${emp.lastName}`,
-        ])
+        ]),
       );
       const clientMap = new Map(
         clients.map((client) => [
           client._id.toString(),
           client.contactPerson || client.companyName,
-        ])
+        ]),
       );
 
       const enrichedComments = ticket.comments.map((comment) => {
@@ -4151,7 +4168,7 @@ export class AdminController {
 
       enrichedComments.sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
 
       return res.status(200).json({
@@ -4252,7 +4269,7 @@ export class AdminController {
       // Populate for response
       await savedInvoice.populate(
         "client_id",
-        "companyName contactPerson email"
+        "companyName contactPerson email",
       );
       if (savedInvoice.project_id) {
         await savedInvoice.populate("project_id", "projectName");
@@ -4345,7 +4362,7 @@ export class AdminController {
       const updatedInvoice = await Invoice.findByIdAndUpdate(
         invoice._id,
         { $set: updates },
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       )
         .populate("client_id", "companyName contactPerson email")
         .populate("project_id", "projectName")
@@ -4459,7 +4476,7 @@ export class AdminController {
       // Statistics
       const totalAmount = invoices.reduce(
         (sum, invoice) => sum + invoice.amount,
-        0
+        0,
       );
       const paidAmount = invoices
         .filter((invoice) => invoice.status === "Paid")
@@ -4583,16 +4600,14 @@ export class AdminController {
 
       // Fetch the ticket with necessary fields with proper type annotations
       const ticket = await Ticket.findById(ticketId)
-        .populate<{ client_id: PopulatedClient }>(
-          "client_id",
-          "companyName contactPerson"
-        )
-        .populate<{ assignedTo: PopulatedEmployee }>(
-          "assignedTo",
-          "firstName lastName employee_id"
-        )
+        .populate<{
+          client_id: PopulatedClient;
+        }>("client_id", "companyName contactPerson")
+        .populate<{
+          assignedTo: PopulatedEmployee;
+        }>("assignedTo", "firstName lastName employee_id")
         .select(
-          "ticketCode title status priority createdAt clientResolved clientResolvedAt comments"
+          "ticketCode title status priority createdAt clientResolved clientResolvedAt comments",
         )
         .lean();
 
@@ -4725,7 +4740,7 @@ export class AdminController {
         const statusUpdateComment = ticket.comments?.find(
           (comment) =>
             comment.text.includes('Status updated to "Resolved"') ||
-            comment.text.includes('Status updated to "Closed"')
+            comment.text.includes('Status updated to "Closed"'),
         );
 
         timeline.push({
@@ -4745,7 +4760,7 @@ export class AdminController {
           ? [...ticket.comments].sort(
               (a, b) =>
                 new Date(b.createdAt).getTime() -
-                new Date(a.createdAt).getTime()
+                new Date(a.createdAt).getTime(),
             )[0]
           : null;
 
@@ -4802,7 +4817,7 @@ export class AdminController {
 
       // 6. Sort timeline events by date
       timeline.sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       );
 
       // Prepare response
@@ -4849,7 +4864,7 @@ export class AdminController {
       if (status) {
         if (
           !["Not Started", "In Progress", "Completed", "On Hold"].includes(
-            status as string
+            status as string,
           )
         ) {
           return res.status(400).json({
@@ -4873,19 +4888,19 @@ export class AdminController {
       // Calculate summary statistics
       const total = projects.length;
       const completed = projects.filter(
-        (project) => project.status === "Completed"
+        (project) => project.status === "Completed",
       ).length;
       const inProgress = projects.filter(
-        (project) => project.status === "In Progress"
+        (project) => project.status === "In Progress",
       ).length;
       const notStarted = projects.filter(
-        (project) => project.status === "Not Started"
+        (project) => project.status === "Not Started",
       ).length;
       const onHold = projects.filter(
-        (project) => project.status === "On Hold"
+        (project) => project.status === "On Hold",
       ).length;
       const highPriority = projects.filter(
-        (project) => project.priority === "High"
+        (project) => project.priority === "High",
       ).length;
 
       // Calculate completion percentage
@@ -4897,7 +4912,7 @@ export class AdminController {
       if (total > 0) {
         // Assign weights: Completed = 100%, In Progress = 50%, Not Started = 0%, On Hold = counted but no progress
         overallProgress = Math.round(
-          (completed * 100 + inProgress * 50) / total
+          (completed * 100 + inProgress * 50) / total,
         );
       }
 
@@ -4930,7 +4945,7 @@ export class AdminController {
           project.status === "Not Started"
             ? Math.ceil(
                 (new Date(project.startDate).getTime() - new Date().getTime()) /
-                  (1000 * 60 * 60 * 24)
+                  (1000 * 60 * 60 * 24),
               )
             : 0;
 
@@ -4938,7 +4953,7 @@ export class AdminController {
           project.status !== "Completed"
             ? Math.ceil(
                 (new Date(project.endDate).getTime() - new Date().getTime()) /
-                  (1000 * 60 * 60 * 24)
+                  (1000 * 60 * 60 * 24),
               )
             : 0;
 
@@ -4959,7 +4974,7 @@ export class AdminController {
             if (totalDuration > 0) {
               progressPercentage = Math.min(
                 Math.round((elapsedDuration / totalDuration) * 100),
-                99 // Cap at 99% for in-progress projects
+                99, // Cap at 99% for in-progress projects
               );
               // Minimum 10% for just started projects
               progressPercentage = Math.max(progressPercentage, 10);
@@ -4981,7 +4996,7 @@ export class AdminController {
             if (totalDays > 0) {
               progressPercentage = Math.min(
                 Math.round((elapsedDays / totalDays) * 100 * 0.5), // Only count 50% of elapsed time for on-hold
-                75 // Cap at 75% for on-hold projects
+                75, // Cap at 75% for on-hold projects
               );
             }
             break;
@@ -5142,7 +5157,7 @@ export class AdminController {
 
   async getEmpAttendanceAnalytics(
     req: AuthRequest,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const employeeId = req.params.id;
@@ -5193,7 +5208,7 @@ export class AdminController {
             (
               (now.getTime() - todayAttendance.punchIn.getTime()) /
               (1000 * 60 * 60)
-            ).toFixed(2)
+            ).toFixed(2),
           );
           currentStatus = "Working";
         }
@@ -5237,13 +5252,13 @@ export class AdminController {
 
       // Calculate attendance status counts for current month
       const presentDays = monthlyLogs.filter(
-        (log) => log.status === "Present"
+        (log) => log.status === "Present",
       ).length;
       const halfDays = monthlyLogs.filter(
-        (log) => log.status === "Half-Day"
+        (log) => log.status === "Half-Day",
       ).length;
       const absentDays = monthlyLogs.filter(
-        (log) => log.status === "Absent"
+        (log) => log.status === "Absent",
       ).length;
 
       // Calculate total expected workdays in the month so far
@@ -5253,7 +5268,7 @@ export class AdminController {
       const attendancePercentage =
         workdaysInMonthSoFar > 0
           ? Math.round(
-              ((presentDays + halfDays * 0.5) / workdaysInMonthSoFar) * 100
+              ((presentDays + halfDays * 0.5) / workdaysInMonthSoFar) * 100,
             )
           : 0;
 
@@ -5354,7 +5369,7 @@ export class AdminController {
 
   async getPeriodicAttendance(
     req: AuthRequest,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const { period } = req.query;
@@ -5372,13 +5387,13 @@ export class AdminController {
       if (period === "monthly") {
         const monthlyStats = await this.getAttendanceStats(
           startOfMonth,
-          new Date()
+          new Date(),
         );
         stats = monthlyStats;
       } else if (period === "weekly") {
         const weeklyStats = await this.getAttendanceStats(
           startOfWeek,
-          new Date()
+          new Date(),
         );
         stats = weeklyStats;
       } else {
@@ -5387,7 +5402,7 @@ export class AdminController {
       }
 
       const absentEmployees = await this.getAbsentEmployees(
-        period as "daily" | "weekly" | "monthly"
+        period as "daily" | "weekly" | "monthly",
       );
 
       const result = {
@@ -5429,7 +5444,7 @@ export class AdminController {
 
   async getTaskStatisticsForDashboard(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const taskStats = await Task.aggregate([
@@ -5687,7 +5702,8 @@ export class AdminController {
         removeSubtaskIds.length > 0
       ) {
         todo.subtasks = todo.subtasks.filter(
-          (subtask) => !removeSubtaskIds.includes(subtask._id?.toString() || "")
+          (subtask) =>
+            !removeSubtaskIds.includes(subtask._id?.toString() || ""),
         );
       }
 
@@ -5936,7 +5952,7 @@ export class AdminController {
 
   async createProjectDisplay(
     req: AuthRequest,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {

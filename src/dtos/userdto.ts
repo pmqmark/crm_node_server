@@ -1,7 +1,7 @@
 import { Schema, Types } from "mongoose";
 export interface IUser extends Document {
-  email: string;
-  password: string; // Moved to base interface
+  email?: string;
+  password?: string; // Moved to base interface
   role: "admin" | "employee";
   createdAt: Date;
   lastLogin: Date | null;
@@ -24,13 +24,22 @@ export interface IEmployee extends IUser {
   role_id?: Schema.Types.ObjectId;
   hireDate: Date;
   dob: Date; // Ensure this field exists
-  addressline1: string;
-  addressline2: string;
-  city: string;
-  state: string;
+  gender: string;
+  nationality: string;
+  photoUrl: string;
+  emiratesIdUrl: string;
+  emiratesIssueDate: Date;
+  emiratesExpiryDate: Date;
+  passportUrl: string;
+  passportIssueDate: Date;
+  passportExpiryDate: Date;
+  addressline1?: string;
+  addressline2?: string;
+  city?: string;
+  state?: string;
   country: string;
-  postalcode: string;
-  employeebio: string;
+  postalcode?: string;
+  employeebio?: string;
   status: "Full-Time" | "Contract" | "Probation" | "WFH";
   leaveRef: Schema.Types.ObjectId;
 }

@@ -1,15 +1,21 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
+import multer from "multer";
 import { roleGuard } from "../middleware/roleguard";
 import { authMiddleware } from "../middleware/verifyToken";
 import { AdminController } from "../controllers/adminController";
 import { DepartmentController } from "../controllers/departmentcontroller";
 import { EmployeeController } from "../controllers/employeecontroller";
 import { ClientController } from "../controllers/clientcontroller";
+import { uploadBufferToSpaces } from "../services/digitalOceanStorage";
 const router = Router();
 const adminController = new AdminController();
 const departmentcontroller = new DepartmentController();
 const employeeController = new EmployeeController();
 const clientController = new ClientController();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 router.use(authMiddleware); //authMiddleware is the jwtMiddleware that verifies token
 router.use(roleGuard(["Admin"])); //role based protected routes
 
@@ -23,6 +29,39 @@ router.get("/test", (req, res) => {
 router.post("/createemployee", (req, res, next) => {
   adminController.createEmployee(req, res);
 });
+
+router.post(
+  "/upload-file",
+  upload.single("file"),
+  async (req: Request, res: Response) => {
+    try {
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) {
+        res.status(400).json({ message: "File is required" });
+        return;
+      }
+
+      const fileName = `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
+      const fileKey = `employees/${fileName}`;
+      const url = await uploadBufferToSpaces(
+        file.buffer,
+        fileKey,
+        file.mimetype,
+      );
+
+      res.status(200).json({ url, fileKey });
+      return;
+    } catch (error: unknown) {
+      res.status(500).json({
+        message:
+          error instanceof Error
+            ? `File upload failed: ${error.message}`
+            : "File upload failed",
+      });
+      return;
+    }
+  },
+);
 
 router.post("/createdepartment", (req, res, next) => {
   adminController.createDepartment(req, res);
