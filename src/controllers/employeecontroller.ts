@@ -112,6 +112,15 @@ export class EmployeeController {
         "firstName",
         "lastName",
         "phone",
+        "gender",
+        "nationality",
+        "photoUrl",
+        "emiratesIdUrl",
+        "emiratesIssueDate",
+        "emiratesExpiryDate",
+        "passportUrl",
+        "passportIssueDate",
+        "passportExpiryDate",
         "hireDate",
         "dob",
         "addressline1",
@@ -147,7 +156,7 @@ export class EmployeeController {
           });
         }
         updateFields.department_id = new Types.ObjectId(
-          updateData.department_id
+          updateData.department_id,
         );
       }
 
@@ -177,7 +186,7 @@ export class EmployeeController {
         {
           new: true,
           runValidators: true,
-        }
+        },
       );
 
       if (!updatedEmployee) {
@@ -225,7 +234,7 @@ export class EmployeeController {
 
       // Get basic project details
       const project = await Project.findById(project_id).select(
-        "projectName status startDate endDate"
+        "projectName status startDate endDate",
       );
 
       return res.status(200).json({
@@ -328,7 +337,7 @@ export class EmployeeController {
       const updatedTask = await Task.findByIdAndUpdate<IUpdatedTask>(
         taskId,
         { $set: updateData },
-        { new: true }
+        { new: true },
       ).populate("project_id", "projectName");
 
       if (!updatedTask) {
@@ -495,7 +504,7 @@ export class EmployeeController {
       const softDeletedEmployee = await Employee.findByIdAndUpdate(
         employeeObjectId,
         { isActive: false },
-        { new: true }
+        { new: true },
       );
 
       if (!softDeletedEmployee) {
@@ -544,7 +553,7 @@ export class EmployeeController {
       if (!Object.values(LeaveType).includes(leaveType)) {
         return res.status(400).json({
           message: `Invalid leave type. Must be one of: ${Object.values(
-            LeaveType
+            LeaveType,
           ).join(", ")}`,
         });
       }
@@ -730,17 +739,16 @@ export class EmployeeController {
       if (
         status &&
         ["Pending", "In Progress", "Completed", "On Hold"].includes(
-          status as string
+          status as string,
         )
       ) {
         query.status = status;
       }
 
       const tasks = await Task.find(query)
-        .populate<{ project_id: IPopulatedProject }>(
-          "project_id",
-          "projectName"
-        )
+        .populate<{
+          project_id: IPopulatedProject;
+        }>("project_id", "projectName")
         .sort({ createdAt: -1 });
 
       if (tasks.length === 0) {
@@ -892,7 +900,7 @@ export class EmployeeController {
   // }
   async getAssignedProjects(
     req: AuthRequest,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
@@ -930,7 +938,7 @@ export class EmployeeController {
         .populate("teamMembers", "firstName lastName employee_id")
         .populate("managers", "firstName lastName employee_id")
         .select(
-          "projectName startDate endDate status priority projectValue projectDescription client teamLeaders teamMembers managers"
+          "projectName startDate endDate status priority projectValue projectDescription client teamLeaders teamMembers managers",
         )
         .sort({ startDate: 1 })
         .skip(skip) // <-- Apply skip for offset
@@ -1027,7 +1035,7 @@ export class EmployeeController {
 
       // Create employee lookup map
       const employeeMap = new Map(
-        employees.map((emp) => [emp.employee_id, emp])
+        employees.map((emp) => [emp.employee_id, emp]),
       );
 
       // Combine attendance logs with employee details
@@ -1089,7 +1097,7 @@ export class EmployeeController {
 
       const weeklyStats = await this.getAttendanceStats(
         startOfWeek,
-        new Date()
+        new Date(),
       );
 
       return res.status(200).json({
@@ -1113,7 +1121,7 @@ export class EmployeeController {
 
       const monthlyStats = await this.getAttendanceStats(
         startOfMonth,
-        new Date()
+        new Date(),
       );
 
       return res.status(200).json({
@@ -1255,7 +1263,7 @@ export class EmployeeController {
 
   private async getAttendanceStats(
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): Promise<AttendanceStats> {
     try {
       // Get total number of employees
@@ -1331,7 +1339,7 @@ export class EmployeeController {
 
       // Check if user has permission to assign tasks
       const assigningEmployee = await Employee.findById(req.user.id).select(
-        "role_id"
+        "role_id",
       );
 
       if (!assigningEmployee) {
@@ -1373,7 +1381,7 @@ export class EmployeeController {
 
       // Validate all employee IDs are valid ObjectIds
       const validObjectIds = assigned_employees.every((id) =>
-        Types.ObjectId.isValid(id)
+        Types.ObjectId.isValid(id),
       );
       if (!validObjectIds) {
         return res.status(400).json({
@@ -1389,7 +1397,7 @@ export class EmployeeController {
       if (validEmployees.length !== assigned_employees.length) {
         const foundIds = validEmployees.map((emp) => emp._id.toString());
         const invalidIds = assigned_employees.filter(
-          (id) => !foundIds.includes(id)
+          (id) => !foundIds.includes(id),
         );
 
         return res.status(400).json({
@@ -1568,7 +1576,7 @@ export class EmployeeController {
         .sort({ createdAt: -1 })
         .populate<{ approvedBy: IPopulatedEmployee }>(
           "approvedBy",
-          "firstName lastName employee_id"
+          "firstName lastName employee_id",
         );
 
       if (leaves.length === 0) {
@@ -1601,12 +1609,12 @@ export class EmployeeController {
         pending: leaves.filter((leave) => leave.status === "Pending").length,
         byType: {
           medical: leaves.filter(
-            (leave) => leave.leaveType === LeaveType.MEDICAL
+            (leave) => leave.leaveType === LeaveType.MEDICAL,
           ).length,
           casual: leaves.filter((leave) => leave.leaveType === LeaveType.CASUAL)
             .length,
           vacation: leaves.filter(
-            (leave) => leave.leaveType === LeaveType.VACATION
+            (leave) => leave.leaveType === LeaveType.VACATION,
           ).length,
         },
         totalDaysTaken: leaves
@@ -1643,7 +1651,7 @@ export class EmployeeController {
       const today = new Date();
       const upcomingLeave = leaves.find(
         (leave) =>
-          leave.status === "Approved" && new Date(leave.fromDate) > today
+          leave.status === "Approved" && new Date(leave.fromDate) > today,
       );
 
       // Check for ongoing leave
@@ -1651,7 +1659,7 @@ export class EmployeeController {
         (leave) =>
           leave.status === "Approved" &&
           new Date(leave.fromDate) <= today &&
-          new Date(leave.toDate) >= today
+          new Date(leave.toDate) >= today,
       );
 
       // Add status indicators
@@ -1665,7 +1673,7 @@ export class EmployeeController {
               toDate: upcomingLeave.toDate,
               daysRemaining: Math.ceil(
                 (new Date(upcomingLeave.fromDate).getTime() - today.getTime()) /
-                  (1000 * 60 * 60 * 24)
+                  (1000 * 60 * 60 * 24),
               ),
             }
           : null,
@@ -1678,7 +1686,7 @@ export class EmployeeController {
               toDate: ongoingLeave.toDate,
               daysRemaining: Math.ceil(
                 (new Date(ongoingLeave.toDate).getTime() - today.getTime()) /
-                  (1000 * 60 * 60 * 24)
+                  (1000 * 60 * 60 * 24),
               ),
             }
           : null,
@@ -1723,10 +1731,9 @@ export class EmployeeController {
 
       // Get employee with populated references using proper TypeScript generics
       const employee = await Employee.findById(userId)
-        .populate<{ department_id: IPopulatedDepartment }>(
-          "department_id",
-          "name description"
-        )
+        .populate<{
+          department_id: IPopulatedDepartment;
+        }>("department_id", "name description")
         .populate<{ role_id: IPopulatedRole }>("role_id", "name description")
         .select("-password"); // Exclude password
 
@@ -1746,6 +1753,15 @@ export class EmployeeController {
         lastName: employee.lastName,
         email: employee.email,
         phone: employee.phone,
+        gender: employee.gender,
+        nationality: employee.nationality,
+        photoUrl: employee.photoUrl,
+        emiratesIdUrl: employee.emiratesIdUrl,
+        emiratesIssueDate: employee.emiratesIssueDate,
+        emiratesExpiryDate: employee.emiratesExpiryDate,
+        passportUrl: employee.passportUrl,
+        passportIssueDate: employee.passportIssueDate,
+        passportExpiryDate: employee.passportExpiryDate,
         department: employee.department_id
           ? {
               id: employee.department_id._id,
@@ -1797,7 +1813,7 @@ export class EmployeeController {
    */
   async getDepartmentColleagues(
     req: AuthRequest,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
@@ -1838,7 +1854,7 @@ export class EmployeeController {
       // Get department details including the manager
       const department = await Department.findById(departmentId).populate(
         "manager_id",
-        "firstName lastName employee_id email phone"
+        "firstName lastName employee_id email phone",
       );
 
       if (!department) {
@@ -1864,7 +1880,7 @@ export class EmployeeController {
         .filter(
           (role) =>
             role.name.toLowerCase().includes("lead") ||
-            role.name.toLowerCase().includes("senior")
+            role.name.toLowerCase().includes("senior"),
         )
         .map((role) => role._id.toString());
 
@@ -1881,7 +1897,7 @@ export class EmployeeController {
             : (department.manager_id as any)._id.toString();
 
         const manager = departmentEmployees.find(
-          (emp) => emp._id.toString() === managerId
+          (emp) => emp._id.toString() === managerId,
         );
 
         if (manager) {
@@ -1984,12 +2000,12 @@ export class EmployeeController {
 
       // Extract the current employee
       const currentEmployeeInfo = formattedEmployees.find(
-        (emp) => emp.id.toString() === employeeId.toString()
+        (emp) => emp.id.toString() === employeeId.toString(),
       );
 
       // Remove current employee from colleagues list
       const colleagues = formattedEmployees.filter(
-        (emp) => emp.id.toString() !== employeeId.toString()
+        (emp) => emp.id.toString() !== employeeId.toString(),
       );
 
       // Get role info for current user using type-safe approach
@@ -2495,7 +2511,8 @@ export class EmployeeController {
         removeSubtaskIds.length > 0
       ) {
         todo.subtasks = todo.subtasks.filter(
-          (subtask) => !removeSubtaskIds.includes(subtask._id?.toString() || "")
+          (subtask) =>
+            !removeSubtaskIds.includes(subtask._id?.toString() || ""),
         );
       }
 
@@ -2652,7 +2669,7 @@ export class EmployeeController {
    */
   async getAttendanceAnalytics(
     req: AuthRequest,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
@@ -2703,7 +2720,7 @@ export class EmployeeController {
             (
               (now.getTime() - todayAttendance.punchIn.getTime()) /
               (1000 * 60 * 60)
-            ).toFixed(2)
+            ).toFixed(2),
           );
           currentStatus = "Working";
         }
@@ -2747,13 +2764,13 @@ export class EmployeeController {
 
       // Calculate attendance status counts for current month
       const presentDays = monthlyLogs.filter(
-        (log) => log.status === "Present"
+        (log) => log.status === "Present",
       ).length;
       const halfDays = monthlyLogs.filter(
-        (log) => log.status === "Half-Day"
+        (log) => log.status === "Half-Day",
       ).length;
       const absentDays = monthlyLogs.filter(
-        (log) => log.status === "Absent"
+        (log) => log.status === "Absent",
       ).length;
 
       // Calculate total expected workdays in the month so far
@@ -2763,7 +2780,7 @@ export class EmployeeController {
       const attendancePercentage =
         workdaysInMonthSoFar > 0
           ? Math.round(
-              ((presentDays + halfDays * 0.5) / workdaysInMonthSoFar) * 100
+              ((presentDays + halfDays * 0.5) / workdaysInMonthSoFar) * 100,
             )
           : 0;
 
@@ -2821,7 +2838,7 @@ export class EmployeeController {
 
   async getWeeklyAttendance(
     req: AuthRequest,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
@@ -2863,8 +2880,8 @@ export class EmployeeController {
           Date.UTC(
             today.getUTCFullYear(),
             today.getUTCMonth(),
-            today.getUTCDate()
-          )
+            today.getUTCDate(),
+          ),
         );
 
         // Get day of week (0 = Sunday, 6 = Saturday in UTC)
@@ -2927,7 +2944,7 @@ export class EmployeeController {
         const log = logByDate.get(dateString);
 
         console.log(
-          `Day ${i}: ${dateString} is a ${dayName} (day ${dayOfWeek})`
+          `Day ${i}: ${dateString} is a ${dayName} (day ${dayOfWeek})`,
         );
 
         let hours = 0;
@@ -3067,9 +3084,8 @@ export class EmployeeController {
       }
 
       // Get employee details to include with comment
-      const employee = await Employee.findById(employeeId).select(
-        "firstName lastName"
-      );
+      const employee =
+        await Employee.findById(employeeId).select("firstName lastName");
 
       if (!employee) {
         return res.status(500).json({
@@ -3210,7 +3226,7 @@ export class EmployeeController {
       clientAuthors.forEach((client: IAuthor) => {
         clientMap.set(
           client._id.toString(),
-          client.contactPerson || client.companyName
+          client.contactPerson || client.companyName,
         );
       });
 
@@ -3243,7 +3259,7 @@ export class EmployeeController {
       // Sort comments by newest first
       formattedComments.sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
 
       return res.status(200).json({
@@ -3309,7 +3325,7 @@ export class EmployeeController {
         return res.status(400).json({
           success: false,
           message: `Employees can only set status to: ${allowedStatuses.join(
-            ", "
+            ", ",
           )}`,
         });
       }
@@ -3405,7 +3421,7 @@ export class EmployeeController {
       if (status) {
         if (
           !["Pending", "In Progress", "Resolved", "Closed"].includes(
-            status as string
+            status as string,
           )
         ) {
           return res.status(400).json({
@@ -3443,10 +3459,9 @@ export class EmployeeController {
       // Find tickets and ensure type safety with populated fields
       const tickets = await Ticket.find(query)
         .sort(sortOptions)
-        .populate<{ client_id: PopulatedClient }>(
-          "client_id",
-          "companyName contactPerson email phone"
-        )
+        .populate<{
+          client_id: PopulatedClient;
+        }>("client_id", "companyName contactPerson email phone")
         .lean();
 
       // Prepare summary statistics
@@ -3541,10 +3556,10 @@ export class EmployeeController {
       })
         .populate<{ client_id: PopulatedClient }>(
           "client_id",
-          "companyName contactPerson"
+          "companyName contactPerson",
         )
         .select(
-          "ticketCode title status priority createdAt clientResolved clientResolvedAt comments"
+          "ticketCode title status priority createdAt clientResolved clientResolvedAt comments",
         )
         .lean();
 
@@ -3668,7 +3683,7 @@ export class EmployeeController {
         const statusUpdateComment = ticket.comments?.find(
           (comment) =>
             comment.text.includes('Status updated to "Resolved"') ||
-            comment.text.includes('Status updated to "Closed"')
+            comment.text.includes('Status updated to "Closed"'),
         );
 
         timeline.push({
@@ -3688,7 +3703,7 @@ export class EmployeeController {
           ? [...ticket.comments].sort(
               (a, b) =>
                 new Date(b.createdAt).getTime() -
-                new Date(a.createdAt).getTime()
+                new Date(a.createdAt).getTime(),
             )[0]
           : null;
 
@@ -3750,7 +3765,7 @@ export class EmployeeController {
 
       // 6. Sort timeline events by date
       timeline.sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       );
 
       // Prepare response
@@ -3784,7 +3799,7 @@ export class EmployeeController {
    */
   async getTodaysTeamBirthdays(
     req: AuthRequest,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       if (!req.user || !req.user.id) {
@@ -3795,9 +3810,8 @@ export class EmployeeController {
       }
       const currentEmployeeId = new Types.ObjectId(req.user.id);
 
-      const currentUser = await Employee.findById(currentEmployeeId).select(
-        "department_id"
-      );
+      const currentUser =
+        await Employee.findById(currentEmployeeId).select("department_id");
       if (!currentUser) {
         return res
           .status(404)
@@ -3814,8 +3828,8 @@ export class EmployeeController {
         Date.UTC(
           today.getUTCFullYear(),
           today.getUTCMonth(),
-          today.getUTCDate()
-        )
+          today.getUTCDate(),
+        ),
       );
       const endOfToday = new Date(
         Date.UTC(
@@ -3825,8 +3839,8 @@ export class EmployeeController {
           23,
           59,
           59,
-          999
-        )
+          999,
+        ),
       );
 
       // 2. Get project IDs current user is part of
@@ -3838,7 +3852,7 @@ export class EmployeeController {
         ],
       }).select("_id");
       const currentUserProjectIds = Array.from(
-        currentUserProjects.map((p) => p._id.toString())
+        currentUserProjects.map((p) => p._id.toString()),
       );
 
       // Store the current user's department ID as string for easy comparison
@@ -3853,7 +3867,7 @@ export class EmployeeController {
       })
         .populate<{ role_id: { _id: Types.ObjectId; name: string } | null }>(
           "role_id",
-          "name"
+          "name",
         )
         .select("firstName lastName dob department_id role_id");
 
@@ -3937,7 +3951,7 @@ export class EmployeeController {
           // Calculate the next birthday date
           const thisYear = today.getUTCFullYear();
           const nextBirthdayThisYear = new Date(
-            Date.UTC(thisYear, dobMonth - 1, dobDay)
+            Date.UTC(thisYear, dobMonth - 1, dobDay),
           );
 
           // If birthday this year has passed, calculate for next year
@@ -3949,7 +3963,7 @@ export class EmployeeController {
           // Calculate days until next birthday
           const daysUntil = Math.ceil(
             (nextBirthdayDate.getTime() - today.getTime()) /
-              (1000 * 60 * 60 * 24)
+              (1000 * 60 * 60 * 24),
           );
 
           allTeamMembers.push({
@@ -3988,7 +4002,7 @@ export class EmployeeController {
 
           // Find all team members who share the same next closest birthday
           const nextBirthdays = allTeamMembers.filter(
-            (member) => member.daysUntil === minDaysUntil
+            (member) => member.daysUntil === minDaysUntil,
           );
 
           // Convert to array of objects for response
@@ -4055,9 +4069,8 @@ export class EmployeeController {
 
       // Optional: Verify it's actually their birthday.
       // This is a good server-side check even if the frontend filters.
-      const colleague = await Employee.findById(colleagueIdAsObject).select(
-        "dob"
-      );
+      const colleague =
+        await Employee.findById(colleagueIdAsObject).select("dob");
       if (!colleague || !colleague.dob) {
         return res.status(404).json({
           success: false,
@@ -4080,8 +4093,8 @@ export class EmployeeController {
         Date.UTC(
           today.getUTCFullYear(),
           today.getUTCMonth(),
-          today.getUTCDate()
-        )
+          today.getUTCDate(),
+        ),
       );
 
       // Attempt to create a new wish. The unique index on BirthdayWish model will prevent duplicates.
@@ -4161,7 +4174,7 @@ export class EmployeeController {
       // 4. Fetch employee-specific leave policy
       let employeeSpecificPolicy: ILeaveForEmp | null = null;
       const employee = await Employee.findById(authReq.user.id).select(
-        "leaveRef"
+        "leaveRef",
       );
 
       if (employee && employee.leaveRef) {
@@ -4184,7 +4197,7 @@ export class EmployeeController {
       } | null = null;
 
       const upcomingHolidaysFromToday = companyHolidays.filter(
-        (h) => h.holidayDate && dayjs(h.holidayDate).isSameOrAfter(today)
+        (h) => h.holidayDate && dayjs(h.holidayDate).isSameOrAfter(today),
       );
 
       if (upcomingHolidaysFromToday.length > 0) {
@@ -4192,7 +4205,7 @@ export class EmployeeController {
         if (nextHolidayDoc.holidayDate) {
           const daysUntil = dayjs(nextHolidayDoc.holidayDate).diff(
             today,
-            "day"
+            "day",
           );
           nextUpcomingHolidayData = {
             name: nextHolidayDoc.name,
@@ -4244,7 +4257,7 @@ export class EmployeeController {
     } catch (error) {
       console.error(
         "Error retrieving common and specific leave policy details:",
-        error
+        error,
       );
       return res.status(500).json({
         success: false,
@@ -4322,7 +4335,7 @@ export class EmployeeController {
       const updatedTask = await Task.findByIdAndUpdate(
         taskId,
         { status },
-        { new: true }
+        { new: true },
       )
         .populate("project_id", "projectName")
         .populate("assigned_employees", "fullName email");
@@ -4351,7 +4364,7 @@ export class EmployeeController {
 
   async getProjectDocumentation(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const { project_id } = req.params;
@@ -4394,7 +4407,7 @@ export class EmployeeController {
 
   async addProjectDocumentation(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const { project_id, data } = req.body;
@@ -4451,7 +4464,7 @@ export class EmployeeController {
   // projectDocumentaion edit
   async editProjectDocumentation(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<Response> {
     try {
       const { project_id } = req.params;

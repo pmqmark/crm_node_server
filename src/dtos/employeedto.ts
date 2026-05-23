@@ -1,24 +1,33 @@
 import { Schema, Types } from "mongoose";
 
 export interface CreateEmployeeDto {
-  email: string;
+  email?: string;
   employee_id?: string;
-  firstName: string;
-  lastName: string;
-  password: string;
-  phone: string;
+  firstName?: string;
+  lastName?: string;
+  password?: string;
+  phone?: string;
   department_id?: Schema.Types.ObjectId;
   role_id?: Schema.Types.ObjectId;
-  hireDate: Date;
-  dob: Date;
-  addressline1: string;
-  addressline2: string;
-  city: string;
-  state: string;
-  country: string;
-  postalcode: string;
-  employeebio: string;
-  status?: 'Full-Time' | 'Contract' | 'Probation' | 'WFH';
+  hireDate?: Date;
+  dob?: Date;
+  gender: string;
+  nationality: string;
+  photoUrl?: string;
+  emiratesIdUrl?: string;
+  emiratesIssueDate?: Date;
+  emiratesExpiryDate?: Date;
+  passportUrl?: string;
+  passportIssueDate?: Date;
+  passportExpiryDate?: Date;
+  addressline1?: string;
+  addressline2?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postalcode?: string;
+  employeebio?: string;
+  status?: "Full-Time" | "Contract" | "Probation" | "WFH";
 }
 
 export interface EmployeeUpdateFields {
@@ -31,6 +40,15 @@ export interface EmployeeUpdateFields {
   role_id?: Types.ObjectId;
   hireDate?: Date;
   dob?: Date;
+  gender?: string;
+  nationality?: string;
+  photoUrl?: string;
+  emiratesIdUrl?: string;
+  emiratesIssueDate?: Date;
+  emiratesExpiryDate?: Date;
+  passportUrl?: string;
+  passportIssueDate?: Date;
+  passportExpiryDate?: Date;
   addressline1?: string;
   addressline2?: string;
   city?: string;
