@@ -159,7 +159,7 @@ employeeSchema.pre("save", async function (this: IEmployee & Document, next) {
           throw new Error("Failed to generate employee ID");
         }
 
-        employeeId = `QMARK${counter.value}`;
+        employeeId = `${counter.value}`;
 
         // Check if this ID already exists
         const existingEmployee = await mongoose.model("Employee").findOne({

@@ -4469,7 +4469,10 @@ export class AdminController {
       // Get invoices
       const invoices = await Invoice.find(query)
         .sort({ invoiceDate: -1 })
-        .populate("client_id", "companyName contactPerson")
+        .populate(
+          "client_id",
+          "companyName contactPerson role email phone address",
+        )
         .populate("project_id", "projectName")
         .populate("createdBy", "username");
 
