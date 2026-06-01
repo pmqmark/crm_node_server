@@ -3226,9 +3226,8 @@ export class AdminController {
         });
       }
 
-      const providedEmail = typeof employeeData.email === "string"
-        ? employeeData.email.trim()
-        : "";
+      const providedEmail =
+        typeof employeeData.email === "string" ? employeeData.email.trim() : "";
       let normalizedEmail: string | undefined;
 
       if (providedEmail) {
@@ -4260,6 +4259,11 @@ export class AdminController {
         description: invoiceData.description,
         invoiceDate: invoiceData.invoiceDate || new Date(),
         dueDate: new Date(invoiceData.dueDate),
+        items: invoiceData.items,
+        subtotal: invoiceData.subtotal,
+        discount: invoiceData.discount,
+        tax: invoiceData.tax,
+        notes: invoiceData.notes,
         status: "Pending",
         createdBy: new Types.ObjectId(adminId),
       });
@@ -4474,7 +4478,8 @@ export class AdminController {
           "companyName contactPerson role email phone address",
         )
         .populate("project_id", "projectName")
-        .populate("createdBy", "username");
+        .populate("createdBy", "username")
+        .lean();
 
       // Statistics
       const totalAmount = invoices.reduce(
