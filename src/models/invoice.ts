@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document } from "mongoose";
 
 export interface IInvoice extends Document {
   invoice_id: string;
@@ -8,7 +8,18 @@ export interface IInvoice extends Document {
   description?: string;
   invoiceDate: Date;
   dueDate: Date;
-  status: 'Pending' | 'Paid' | 'Overdue';
+  items?: Array<{
+    description?: string;
+    type?: string;
+    quantity?: number;
+    rate?: number;
+    amount?: number;
+  }>;
+  subtotal?: number;
+  discount?: number;
+  tax?: number;
+  notes?: string;
+  status: "Pending" | "Paid" | "Overdue";
   createdAt: Date;
   createdBy: mongoose.Types.ObjectId;
   paymentDate?: Date;
@@ -16,120 +27,156 @@ export interface IInvoice extends Document {
 
 // Counter schema for invoice IDs
 const InvoiceCounterSchema = new Schema({
-  name: { 
-    type: String, 
+  name: {
+    type: String,
     required: true,
-    default: 'invoiceId'
+    default: "invoiceId",
   },
   year: {
     type: Number,
-    required: true
-  },
-  value: { 
-    type: Number, 
     required: true,
-    default: 0
-  }
+  },
+  value: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
 });
 
 // Create the counter model
-const InvoiceCounter = mongoose.models.InvoiceCounter || 
-  mongoose.model('InvoiceCounter', InvoiceCounterSchema, 'invoicecounters');
+const InvoiceCounter =
+  mongoose.models.InvoiceCounter ||
+  mongoose.model("InvoiceCounter", InvoiceCounterSchema, "invoicecounters");
 
-const invoiceSchema = new Schema<IInvoice>({
-  invoice_id: {
-    type: String,
-    required: false, // Auto-generated just like employee_id
+const invoiceSchema = new Schema<IInvoice>(
+  {
+    invoice_id: {
+      type: String,
+      required: false, // Auto-generated just like employee_id
+    },
+    client_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Client",
+      required: true,
+    },
+    project_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Project",
+      required: false,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    description: {
+      type: String,
+      required: false,
+    },
+    invoiceDate: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+    dueDate: {
+      type: Date,
+      required: true,
+    },
+    items: {
+      type: [
+        {
+          description: { type: String, required: false },
+          type: { type: String, required: false },
+          quantity: { type: Number, required: false },
+          rate: { type: Number, required: false },
+          amount: { type: Number, required: false },
+        },
+      ],
+      required: false,
+      default: undefined,
+    },
+    subtotal: {
+      type: Number,
+      required: false,
+      default: undefined,
+    },
+    discount: {
+      type: Number,
+      required: false,
+      default: undefined,
+    },
+    tax: {
+      type: Number,
+      required: false,
+      default: undefined,
+    },
+    notes: {
+      type: String,
+      required: false,
+    },
+    status: {
+      type: String,
+      enum: ["Pending", "Paid", "Overdue"],
+      default: "Pending",
+      required: true,
+    },
+    paymentDate: {
+      type: Date,
+      required: false,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "Admin",
+      required: true,
+    },
   },
-  client_id: {
-    type: Schema.Types.ObjectId,
-    ref: 'Client',
-    required: true
-  },
-  project_id: {
-    type: Schema.Types.ObjectId,
-    ref: 'Project',
-    required: false
-  },
-  amount: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  description: {
-    type: String,
-    required: false
-  },
-  invoiceDate: {
-    type: Date,
-    required: true,
-    default: Date.now
-  },
-  dueDate: {
-    type: Date,
-    required: true
-  },
-  status: {
-    type: String,
-    enum: ['Pending', 'Paid', 'Overdue'],
-    default: 'Pending',
-    required: true
-  },
-  paymentDate: {
-    type: Date,
-    required: false
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  createdBy: {
-    type: Schema.Types.ObjectId,
-    ref: 'Admin',
-    required: true
-  }
-}, { timestamps: true });
+  { timestamps: true },
+);
 
 // Pre-save middleware to generate invoice_id
-invoiceSchema.pre('save', async function(this: IInvoice & Document, next) {
+invoiceSchema.pre("save", async function (this: IInvoice & Document, next) {
   try {
     if (this.isNew && !this.invoice_id) {
       let isUnique = false;
-      let invoiceId = '';
+      let invoiceId = "";
       let attempts = 0;
       const maxAttempts = 10; // Prevent infinite loops
-      
+
       const currentYear = new Date().getFullYear();
-      
+
       // Try to generate a unique ID
       while (!isUnique && attempts < maxAttempts) {
         try {
           // Use findOneAndUpdate with $setOnInsert to handle the initial creation if needed
           const counter = await InvoiceCounter.findOneAndUpdate(
-            { name: 'invoiceId', year: currentYear },
-            { 
+            { name: "invoiceId", year: currentYear },
+            {
               $inc: { value: 1 },
-              $setOnInsert: { name: 'invoiceId', year: currentYear }
+              $setOnInsert: { name: "invoiceId", year: currentYear },
             },
-            { 
-              new: true, 
+            {
+              new: true,
               upsert: true,
-              setDefaultsOnInsert: true // This is a boolean now
-            }
+              setDefaultsOnInsert: true, // This is a boolean now
+            },
           );
-          
+
           if (!counter) {
-            throw new Error('Failed to generate invoice ID');
+            throw new Error("Failed to generate invoice ID");
           }
-          
+
           // Format: INV-YYYY-001 (padded to at least 3 digits)
-          invoiceId = `INV-${currentYear}-${counter.value.toString().padStart(3, '0')}`;
-          
+          invoiceId = `INV-${currentYear}-${counter.value.toString().padStart(3, "0")}`;
+
           // Check if this ID already exists
-          const existingInvoice = await mongoose.model('Invoice').findOne({ 
-            invoice_id: invoiceId 
+          const existingInvoice = await mongoose.model("Invoice").findOne({
+            invoice_id: invoiceId,
           });
-          
+
           if (!existingInvoice) {
             // We found a unique ID
             isUnique = true;
@@ -139,21 +186,23 @@ invoiceSchema.pre('save', async function(this: IInvoice & Document, next) {
             attempts++;
           }
         } catch (error) {
-          console.error('Error generating invoice ID:', error);
+          console.error("Error generating invoice ID:", error);
           attempts++;
         }
       }
-      
+
       if (!isUnique) {
-        throw new Error(`Could not generate a unique invoice ID after ${maxAttempts} attempts`);
+        throw new Error(
+          `Could not generate a unique invoice ID after ${maxAttempts} attempts`,
+        );
       }
     }
-    
+
     // Auto set status to 'Overdue' if past due date
-    if (this.status === 'Pending' && this.dueDate < new Date()) {
-      this.status = 'Overdue';
+    if (this.status === "Pending" && this.dueDate < new Date()) {
+      this.status = "Overdue";
     }
-    
+
     next();
   } catch (error) {
     next(error as Error);
@@ -166,5 +215,5 @@ invoiceSchema.index({ client_id: 1 });
 invoiceSchema.index({ status: 1 });
 invoiceSchema.index({ dueDate: 1 });
 
-const Invoice = mongoose.model<IInvoice>('Invoice', invoiceSchema);
+const Invoice = mongoose.model<IInvoice>("Invoice", invoiceSchema);
 export default Invoice;
