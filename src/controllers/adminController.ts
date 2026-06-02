@@ -3226,9 +3226,8 @@ export class AdminController {
         });
       }
 
-      const providedEmail = typeof employeeData.email === "string"
-        ? employeeData.email.trim()
-        : "";
+      const providedEmail =
+        typeof employeeData.email === "string" ? employeeData.email.trim() : "";
       let normalizedEmail: string | undefined;
 
       if (providedEmail) {
@@ -4260,6 +4259,11 @@ export class AdminController {
         description: invoiceData.description,
         invoiceDate: invoiceData.invoiceDate || new Date(),
         dueDate: new Date(invoiceData.dueDate),
+        items: invoiceData.items,
+        subtotal: invoiceData.subtotal,
+        discount: invoiceData.discount,
+        tax: invoiceData.tax,
+        notes: invoiceData.notes,
         status: "Pending",
         createdBy: new Types.ObjectId(adminId),
       });
@@ -4469,9 +4473,13 @@ export class AdminController {
       // Get invoices
       const invoices = await Invoice.find(query)
         .sort({ invoiceDate: -1 })
-        .populate("client_id", "companyName contactPerson")
+        .populate(
+          "client_id",
+          "companyName contactPerson role email phone address",
+        )
         .populate("project_id", "projectName")
-        .populate("createdBy", "username");
+        .populate("createdBy", "username")
+        .lean();
 
       // Statistics
       const totalAmount = invoices.reduce(
