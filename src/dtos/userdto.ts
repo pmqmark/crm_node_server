@@ -69,10 +69,10 @@ export interface validitatedUser {
 export interface IClient extends IUser {
   companyName: string;
   contactPerson: string;
-  phone: string;
-  address?: string;
+  phone?: string;
+  address: string;
   createdAt: Date;
-  description: string;
+  description?: string;
 }
 
 export interface ClientUpdateFields {
