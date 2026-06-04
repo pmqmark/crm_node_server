@@ -3011,7 +3011,15 @@ export class AdminController {
   async createClient(req: Request, res: Response): Promise<Response> {
     try {
       const clientData: IClient = req.body;
-      const { companyName, address, contactPerson, email, password, phone, description } = clientData;
+      const {
+        companyName,
+        address,
+        contactPerson,
+        email,
+        password,
+        phone,
+        description,
+      } = clientData;
 
       if (!companyName || !address || !contactPerson) {
         return res.status(400).json({

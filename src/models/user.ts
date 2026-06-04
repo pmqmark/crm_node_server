@@ -30,10 +30,16 @@ const userSchema = new Schema<IUser>(
       default: true,
     },
   },
-  { discriminatorKey: "role" }
+  { discriminatorKey: "role" },
 );
 
-userSchema.index({ email: 1 }, { unique: true, sparse: true });
+userSchema.index(
+  { email: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { email: { $type: "string" } },
+  },
+);
 
 // Create the base model
 const User = mongoose.model<IUser>("User", userSchema);
