@@ -5,8 +5,6 @@ import { IUser, IAdmin, IClient, IEmployee } from "../dtos/userdto";
 const clientSchema = new Schema<IClient>({
   email: {
     type: String,
-    unique: true,
-    sparse: true,
   },
   password: {
     type: String,
