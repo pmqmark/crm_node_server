@@ -40,7 +40,7 @@ userSchema.index(
     partialFilterExpression: { email: { $type: "string" } },
   },
 );
-
+//
 // Create the base model
 const User = mongoose.model<IUser>("User", userSchema);
 export default User;
