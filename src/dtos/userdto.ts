@@ -28,9 +28,11 @@ export interface IEmployee extends IUser {
   nationality: string;
   photoUrl: string;
   emiratesIdUrl: string;
+  emiratesIdNumber?: string;
   emiratesIssueDate: Date;
   emiratesExpiryDate: Date;
   passportUrl: string;
+  passportNumber?: string;
   passportIssueDate: Date;
   passportExpiryDate: Date;
   addressline1?: string;
