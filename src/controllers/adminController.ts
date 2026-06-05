@@ -3060,8 +3060,11 @@ export class AdminController {
         "code" in error &&
         (error as { code?: number }).code === 11000
       ) {
+        const duplicateKey = (error as any).keyValue;
+        console.error("Duplicate key error while creating client:", duplicateKey);
         return res.status(409).json({
           message: "Client already exist",
+          duplicate: duplicateKey,
         });
       }
       if (error instanceof Error) {
