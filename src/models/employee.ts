@@ -12,7 +12,7 @@ const EmployeeCounterSchema = new Schema({
   value: {
     type: Number,
     required: true,
-    default: 1199, // Setting to 1199 so first increment gives 1200
+    default: 0, // Start counter at 0 so first increment gives 0001
   },
 });
 
@@ -167,7 +167,7 @@ employeeSchema.pre("save", async function (this: IEmployee & Document, next) {
           throw new Error("Failed to generate employee ID");
         }
 
-        employeeId = `${counter.value}`;
+        employeeId = `${counter.value}`.padStart(5, "0");
 
         // Check if this ID already exists
         const existingEmployee = await mongoose.model("Employee").findOne({
