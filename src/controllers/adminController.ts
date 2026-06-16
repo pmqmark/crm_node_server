@@ -434,6 +434,77 @@ export class AdminController {
     }
   }
 
+  async deleteClientById(req: Request, res: Response): Promise<Response> {
+    try {
+      const authReq = req as AuthRequest;
+      if (!authReq.user || !authReq.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Admin ID is missing",
+        });
+      }
+
+      const { id } = req.body;
+
+      if (!id || !Types.ObjectId.isValid(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid client ID is required",
+        });
+      }
+
+      const client = await Client.findById(id);
+      if (!client) {
+        return res.status(404).json({
+          success: false,
+          message: "Client not found",
+        });
+      }
+
+      const activeProjects = await Project.find({
+        client: id,
+        status: { $in: ["Not Started", "In Progress"] },
+      });
+
+      if (activeProjects.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot delete client with active projects",
+          activeProjects: activeProjects.map((p) => ({
+            id: p._id,
+            name: p.projectName,
+            status: p.status,
+          })),
+        });
+      }
+
+      await Promise.all([
+        Project.deleteMany({ client: id }),
+        Invoice.deleteMany({ client_id: id }),
+        Ticket.deleteMany({ client_id: id }),
+        Review.deleteMany({ user_id: id }),
+      ]);
+
+      await Client.findByIdAndDelete(id);
+
+      return res.status(200).json({
+        success: true,
+        message: "Client and associated data deleted successfully",
+        data: {
+          clientName: client.companyName,
+          deletedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error("Error deleting client:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting client",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
   async getTasksByProjectId(req: Request, res: Response): Promise<Response> {
     try {
       const { project_id } = req.params;
@@ -4351,9 +4422,52 @@ export class AdminController {
         updates.description = updateData.description;
       }
 
+      if (updateData.invoiceDate !== undefined) {
+        const invoiceDate = new Date(updateData.invoiceDate);
+        if (isNaN(invoiceDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid invoice date format",
+          });
+        }
+        updates.invoiceDate = invoiceDate;
+      }
+
       // Update dueDate if provided
-      if (updateData.dueDate) {
-        updates.dueDate = new Date(updateData.dueDate);
+      if (updateData.dueDate !== undefined) {
+        const dueDate = new Date(updateData.dueDate);
+        if (isNaN(dueDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid due date format",
+          });
+        }
+        updates.dueDate = dueDate;
+      }
+
+      if (updateData.discount !== undefined) {
+        if (updateData.discount < 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Discount cannot be negative",
+          });
+        }
+        updates.discount = updateData.discount;
+      }
+
+      if (updateData.notes !== undefined) {
+        updates.notes = updateData.notes;
+      }
+
+      if (updateData.paymentDate !== undefined) {
+        const paymentDate = new Date(updateData.paymentDate);
+        if (isNaN(paymentDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid payment date format",
+          });
+        }
+        updates.paymentDate = paymentDate;
       }
 
       // Update status if provided
@@ -4368,7 +4482,11 @@ export class AdminController {
         updates.status = updateData.status;
 
         // If status is changed to Paid, set payment date
-        if (updateData.status === "Paid" && !invoice.paymentDate) {
+        if (
+          updateData.status === "Paid" &&
+          !invoice.paymentDate &&
+          updateData.paymentDate === undefined
+        ) {
           updates.paymentDate = updateData.paymentDate || new Date();
         }
       }
