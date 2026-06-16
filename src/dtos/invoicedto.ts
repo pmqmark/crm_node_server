@@ -26,7 +26,10 @@ export interface UpdateInvoiceDto {
   status?: "Pending" | "Paid" | "Overdue";
   amount?: number;
   description?: string;
+  invoiceDate?: Date;
   dueDate?: Date;
+  discount?: number;
+  notes?: string;
   paymentDate?: Date;
 }
 
