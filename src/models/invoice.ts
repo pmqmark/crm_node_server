@@ -17,6 +17,7 @@ export interface IInvoice extends Document {
   }>;
   subtotal?: number;
   discount?: number;
+  discountPercent?: number;
   paymentTerms?: string;
   tax?: number;
   notes?: string;
@@ -102,6 +103,11 @@ const invoiceSchema = new Schema<IInvoice>(
       default: undefined,
     },
     discount: {
+      type: Number,
+      required: false,
+      default: undefined,
+    },
+    discountPercent: {
       type: Number,
       required: false,
       default: undefined,

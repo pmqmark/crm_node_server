@@ -16,6 +16,7 @@ export interface CreateInvoiceDto {
   }>;
   subtotal?: number;
   discount?: number;
+  discountPercent?: number;
   tax?: number;
   notes?: string;
 }

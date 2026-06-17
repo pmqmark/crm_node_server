@@ -4344,6 +4344,7 @@ export class AdminController {
         items: invoiceData.items,
         subtotal: invoiceData.subtotal,
         discount: invoiceData.discount,
+        discountPercent: invoiceData.discountPercent,
         tax: invoiceData.tax,
         notes: invoiceData.notes,
         status: "Pending",
@@ -4488,6 +4489,16 @@ export class AdminController {
           });
         }
         updates.discount = updateData.discount;
+      }
+
+      if (updateData.discountPercent !== undefined) {
+        if (updateData.discountPercent < 0 || updateData.discountPercent > 100) {
+          return res.status(400).json({
+            success: false,
+            message: "Discount percent must be between 0 and 100",
+          });
+        }
+        updates.discountPercent = updateData.discountPercent;
       }
 
       if (updateData.subtotal !== undefined) {
