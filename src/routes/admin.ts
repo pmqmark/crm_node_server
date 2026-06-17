@@ -300,7 +300,7 @@ router.put("/invoice/:id", (req, res) => {
 });
 
 router.get("/invoice/:id", (req, res) => {
-  adminController.listAllInvoices(req, res);
+  adminController.getInvoice(req, res);
 });
 
 // router.delete('/invoice/:id', (req, res) => {
