@@ -17,6 +17,8 @@ export interface IInvoice extends Document {
   }>;
   subtotal?: number;
   discount?: number;
+  discountPercent?: number;
+  paymentTerms?: string;
   tax?: number;
   notes?: string;
   status: "Pending" | "Paid" | "Overdue";
@@ -102,6 +104,16 @@ const invoiceSchema = new Schema<IInvoice>(
     },
     discount: {
       type: Number,
+      required: false,
+      default: undefined,
+    },
+    discountPercent: {
+      type: Number,
+      required: false,
+      default: undefined,
+    },
+    paymentTerms: {
+      type: String,
       required: false,
       default: undefined,
     },
