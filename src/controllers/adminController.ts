@@ -4344,6 +4344,7 @@ export class AdminController {
         items: invoiceData.items,
         subtotal: invoiceData.subtotal,
         discount: invoiceData.discount,
+        discountPercent: invoiceData.discountPercent,
         tax: invoiceData.tax,
         notes: invoiceData.notes,
         status: "Pending",
@@ -4405,6 +4406,7 @@ export class AdminController {
 
       // Updates to apply
       const updates: any = {};
+      const unsetUpdates: any = {};
 
       // Update amount if provided
       if (updateData.amount !== undefined) {
@@ -4420,6 +4422,40 @@ export class AdminController {
       // Update description if provided
       if (updateData.description !== undefined) {
         updates.description = updateData.description;
+      }
+
+      if (updateData.items !== undefined) {
+        if (!Array.isArray(updateData.items) || updateData.items.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "At least one item is required",
+          });
+        }
+
+        for (const item of updateData.items) {
+          const rate = Number(item.rate) || 0;
+          const quantity = Number(item.quantity) || 0;
+
+          if (!item.description || rate <= 0 || quantity <= 0) {
+            return res.status(400).json({
+              success: false,
+              message:
+                "All items must have a description, positive rate, and positive quantity",
+            });
+          }
+        }
+
+        updates.items = updateData.items.map((item) => {
+          const rate = Number(item.rate) || 0;
+          const quantity = Number(item.quantity) || 0;
+          return {
+            description: item.description,
+            type: item.type || "service",
+            quantity,
+            rate,
+            amount: rate * quantity,
+          };
+        });
       }
 
       if (updateData.invoiceDate !== undefined) {
@@ -4455,11 +4491,47 @@ export class AdminController {
         updates.discount = updateData.discount;
       }
 
+      if (updateData.discountPercent !== undefined) {
+        if (updateData.discountPercent < 0 || updateData.discountPercent > 100) {
+          return res.status(400).json({
+            success: false,
+            message: "Discount percent must be between 0 and 100",
+          });
+        }
+        updates.discountPercent = updateData.discountPercent;
+      }
+
+      if (updateData.subtotal !== undefined) {
+        if (updateData.subtotal < 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Subtotal cannot be negative",
+          });
+        }
+        updates.subtotal = updateData.subtotal;
+      }
+
+      if (updateData.tax !== undefined) {
+        if (updateData.tax < 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Tax cannot be negative",
+          });
+        }
+        updates.tax = updateData.tax;
+      }
+
+      if (updateData.paymentTerms !== undefined) {
+        updates.paymentTerms = updateData.paymentTerms;
+      }
+
       if (updateData.notes !== undefined) {
         updates.notes = updateData.notes;
       }
 
-      if (updateData.paymentDate !== undefined) {
+      if ((updateData as any).paymentDate === null) {
+        unsetUpdates.paymentDate = "";
+      } else if (updateData.paymentDate !== undefined) {
         const paymentDate = new Date(updateData.paymentDate);
         if (isNaN(paymentDate.getTime())) {
           return res.status(400).json({
@@ -4494,7 +4566,12 @@ export class AdminController {
       // Apply updates
       const updatedInvoice = await Invoice.findByIdAndUpdate(
         invoice._id,
-        { $set: updates },
+        {
+          $set: updates,
+          ...(Object.keys(unsetUpdates).length > 0
+            ? { $unset: unsetUpdates }
+            : {}),
+        },
         { new: true, runValidators: true },
       )
         .populate("client_id", "companyName contactPerson email")
@@ -4518,7 +4595,10 @@ export class AdminController {
 
   async getInvoice(req: Request, res: Response): Promise<Response> {
     try {
-      const invoiceData: GetInvoiceDto = req.body;
+      const invoiceData: GetInvoiceDto = {
+        ...req.body,
+        id: req.params.id || req.body.id,
+      };
 
       // Validate that we have at least one identifier
       if (!invoiceData.id && !invoiceData.invoice_id) {
@@ -4544,7 +4624,10 @@ export class AdminController {
       }
 
       // Populate references
-      await invoice.populate("client_id", "companyName contactPerson email");
+      await invoice.populate(
+        "client_id",
+        "companyName contactPerson role email phone address",
+      );
       if (invoice.project_id) {
         await invoice.populate("project_id", "projectName");
       }
