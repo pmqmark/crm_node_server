@@ -6,12 +6,14 @@ import { AdminController } from "../controllers/adminController";
 import { DepartmentController } from "../controllers/departmentcontroller";
 import { EmployeeController } from "../controllers/employeecontroller";
 import { ClientController } from "../controllers/clientcontroller";
+import { AccountsController } from "../controllers/accountsController";
 import { uploadBufferToSpaces } from "../services/digitalOceanStorage";
 const router = Router();
 const adminController = new AdminController();
 const departmentcontroller = new DepartmentController();
 const employeeController = new EmployeeController();
 const clientController = new ClientController();
+const accountsController = new AccountsController();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
@@ -184,6 +186,79 @@ router.put("/update-invoice", (req, res) => {
 
 router.delete("/delete-invoice", (req, res) => {
   adminController.deleteInvoice(req, res);
+});
+
+// Accounts module routes
+router.post("/accounts/create-group", (req, res) => {
+  accountsController.createAccountGroup(req, res);
+});
+
+router.put("/accounts/update-group/:account_group_id", (req, res) => {
+  accountsController.updateAccountGroup(req, res);
+});
+
+router.delete("/accounts/delete-group/:account_group_id", (req, res) => {
+  accountsController.deleteAccountGroup(req, res);
+});
+
+router.get("/accounts/list-groups", (req, res) => {
+  accountsController.listAccountGroups(req, res);
+});
+
+router.post("/accounts/create-ledger", (req, res) => {
+  accountsController.createLedgerAccount(req, res);
+});
+
+router.put("/accounts/update-ledger/:ledger_account_id", (req, res) => {
+  accountsController.updateLedgerAccount(req, res);
+});
+
+router.delete("/accounts/delete-ledger/:ledger_account_id", (req, res) => {
+  accountsController.deleteLedgerAccount(req, res);
+});
+
+router.get("/accounts/list-ledgers", (req, res) => {
+  accountsController.listLedgerAccounts(req, res);
+});
+
+router.post("/accounts/create-voucher", (req, res) => {
+  accountsController.createVoucher(req, res);
+});
+
+router.get("/accounts/list-vouchers", (req, res) => {
+  accountsController.listVouchers(req, res);
+});
+
+router.get("/accounts/get-voucher/:voucher_id", (req, res) => {
+  accountsController.getVoucherById(req, res);
+});
+
+router.put("/accounts/update-voucher/:voucher_id", (req, res) => {
+  accountsController.updateVoucher(req, res);
+});
+
+router.delete("/accounts/delete-voucher/:voucher_id", (req, res) => {
+  accountsController.deleteVoucher(req, res);
+});
+
+router.get("/accounts/trial-balance", (req, res) => {
+  accountsController.getTrialBalance(req, res);
+});
+
+router.get("/accounts/ledger-report", (req, res) => {
+  accountsController.getLedgerReport(req, res);
+});
+
+router.get("/accounts/profit-and-loss", (req, res) => {
+  accountsController.getProfitAndLoss(req, res);
+});
+
+router.get("/accounts/balance-sheet", (req, res) => {
+  accountsController.getBalanceSheet(req, res);
+});
+
+router.post("/accounts/close-period", (req, res) => {
+  accountsController.closeAccountingPeriod(req, res);
 });
 
 router.get("/get-employee-statis", (req, res) => {

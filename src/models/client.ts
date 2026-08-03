@@ -3,9 +3,19 @@ import User from "./user";
 import { IUser, IAdmin, IClient, IEmployee } from "../dtos/userdto";
 
 const clientSchema = new Schema<IClient>({
-  companyName: {
+  email: {
     type: String,
     required: true,
+    unique: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  companyName: {
+    type: String,
+    // required: true,since no need of company name
+    default: "Confidential",
   },
   contactPerson: {
     type: String,
@@ -13,13 +23,15 @@ const clientSchema = new Schema<IClient>({
   },
   phone: {
     type: String,
+    required: true,
   },
   address: {
     type: String,
-    required: true,
+    required: false,
   },
   description: {
     type: String,
+    required: true,
   },
 });
 
