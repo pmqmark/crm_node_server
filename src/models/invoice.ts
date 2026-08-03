@@ -1,5 +1,7 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+export type InvoicePaymentMethod = "CASH" | "BANK_TRANSFER" | "UPI" | "CARD";
+
 export interface IInvoice extends Document {
   invoice_id: string;
   client_id: mongoose.Types.ObjectId;
@@ -25,6 +27,7 @@ export interface IInvoice extends Document {
   createdAt: Date;
   createdBy: mongoose.Types.ObjectId;
   paymentDate?: Date;
+  paymentMethod?: InvoicePaymentMethod;
 }
 
 // Counter schema for invoice IDs
@@ -134,6 +137,11 @@ const invoiceSchema = new Schema<IInvoice>(
     },
     paymentDate: {
       type: Date,
+      required: false,
+    },
+    paymentMethod: {
+      type: String,
+      enum: ["CASH", "BANK_TRANSFER", "UPI", "CARD"],
       required: false,
     },
     createdAt: {

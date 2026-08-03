@@ -48,7 +48,7 @@ export class AuthService {
 
   async login(
     req: Request,
-    res: Response
+    res: Response,
   ): Promise<validitatedUser | Response> {
     try {
       const userData: loginUserDto = req.body;
@@ -106,7 +106,7 @@ export class AuthService {
 
       const decoded: any = jwt.verify(
         refreshToken,
-        process.env.REFRESH_TOKEN_SECRET as string
+        process.env.REFRESH_TOKEN_SECRET as string,
       );
       console.log({ decoded });
 

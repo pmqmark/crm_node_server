@@ -72,10 +72,6 @@ const employeeSchema = new Schema<IEmployee>({
     type: String,
     required: false,
   },
-  emiratesIdNumber: {
-    type: String,
-    required: false,
-  },
   emiratesIssueDate: {
     type: Date,
     required: false,
@@ -85,10 +81,6 @@ const employeeSchema = new Schema<IEmployee>({
     required: false,
   },
   passportUrl: {
-    type: String,
-    required: false,
-  },
-  passportNumber: {
     type: String,
     required: false,
   },

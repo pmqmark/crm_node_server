@@ -19,6 +19,7 @@ export interface CreateInvoiceDto {
   discountPercent?: number;
   tax?: number;
   notes?: string;
+  paymentMethod?: "CASH" | "BANK_TRANSFER" | "UPI" | "CARD";
 }
 
 export interface UpdateInvoiceDto {
@@ -43,6 +44,7 @@ export interface UpdateInvoiceDto {
   notes?: string;
   paymentTerms?: string;
   paymentDate?: Date;
+  paymentMethod?: "CASH" | "BANK_TRANSFER" | "UPI" | "CARD";
 }
 
 export interface GetInvoiceDto {

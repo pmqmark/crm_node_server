@@ -15,7 +15,9 @@ import mongoose, { isValidObjectId, Types } from "mongoose";
 import AttendanceLog from "../models/logs";
 import Leave, { LeaveType } from "../models/leave";
 import Ticket from "../models/ticket";
-import Invoice from "../models/invoice";
+import Invoice, { IInvoice } from "../models/invoice";
+import LedgerAccount from "../models/ledgerAccount";
+import Voucher from "../models/voucher";
 import {
   CreateInvoiceDto,
   UpdateInvoiceDto,
@@ -178,6 +180,185 @@ export class AdminController {
     }
 
     return count;
+  }
+
+  private async findLedgerAccountByName(name: string) {
+    return LedgerAccount.findOne({
+      name: { $regex: new RegExp(`^${name}$`, "i") },
+    });
+  }
+
+  private async findLedgerAccountByRegex(regex: RegExp) {
+    return LedgerAccount.findOne({ name: regex });
+  }
+
+  private async createInvoiceVoucher(invoice: IInvoice, adminId: string) {
+    const arAccount =
+      await this.findLedgerAccountByRegex(/accounts receivable/i);
+    const salesAccount =
+      (await this.findLedgerAccountByRegex(/sales revenue/i)) ||
+      (await this.findLedgerAccountByRegex(/sales/i)) ||
+      (await this.findLedgerAccountByRegex(/income/i));
+    const gstAccount = await this.findLedgerAccountByRegex(/gst payable/i);
+    const discountAccount =
+      await this.findLedgerAccountByRegex(/discount allowed/i);
+
+    if (!arAccount || !salesAccount) {
+      throw new Error(
+        "Required ledger accounts not found: Accounts Receivable and Sales Revenue",
+      );
+    }
+
+    const grossAmount = Number(invoice.amount || 0);
+    const gstAmount = Math.max(0, Number(invoice.tax || 0));
+    const discountAmount = Math.max(0, Number(invoice.discount || 0));
+    const receivableAmount = grossAmount - discountAmount;
+    const revenueAmount = grossAmount - gstAmount;
+
+    if (receivableAmount < 0 || revenueAmount < 0) {
+      throw new Error(
+        "Invoice tax and discount cannot exceed the invoice amount",
+      );
+    }
+
+    if (gstAmount > 0 && !gstAccount) {
+      throw new Error("Required ledger account not found: GST Payable");
+    }
+
+    if (discountAmount > 0 && !discountAccount) {
+      throw new Error("Required ledger account not found: Discount Allowed");
+    }
+
+    const createdBy = Types.ObjectId.isValid(adminId)
+      ? new Types.ObjectId(adminId)
+      : invoice.createdBy;
+    const lines = [
+      {
+        ledgerAccount: arAccount._id,
+        debit: receivableAmount,
+        credit: 0,
+        narration: "Accounts Receivable",
+      },
+      ...(discountAmount > 0
+        ? [
+            {
+              ledgerAccount: discountAccount!._id,
+              debit: discountAmount,
+              credit: 0,
+              narration: "Discount Allowed",
+            },
+          ]
+        : []),
+      {
+        ledgerAccount: salesAccount._id,
+        debit: 0,
+        credit: revenueAmount,
+        narration: "Sales Revenue",
+      },
+      ...(gstAmount > 0
+        ? [
+            {
+              ledgerAccount: gstAccount!._id,
+              debit: 0,
+              credit: gstAmount,
+              narration: "GST Payable",
+            },
+          ]
+        : []),
+    ];
+
+    const voucher = new Voucher({
+      voucherType: "SALES",
+      date: invoice.invoiceDate || new Date(),
+      narration: `Sales invoice ${invoice.invoice_id}`,
+      referenceType: "sales_invoice",
+      reference: invoice.invoice_id,
+      sourceType: "sales_invoice",
+      sourceId: invoice._id,
+      lines,
+      createdBy,
+    });
+
+    await voucher.save();
+  }
+
+  private async createPaymentVoucher(invoice: IInvoice, adminId: string) {
+    const arAccount =
+      await this.findLedgerAccountByRegex(/accounts receivable/i);
+    const paymentLedgerName = {
+      CASH: /cash/i,
+      BANK_TRANSFER: /bank/i,
+      UPI: /upi receivable/i,
+      CARD: /card receivable/i,
+    }[invoice.paymentMethod || "CASH"];
+    const cashAccount = await this.findLedgerAccountByRegex(paymentLedgerName);
+
+    if (!arAccount || !cashAccount) {
+      throw new Error(
+        "Required ledger accounts not found: Accounts Receivable and Cash/Bank",
+      );
+    }
+
+    const createdBy = Types.ObjectId.isValid(adminId)
+      ? new Types.ObjectId(adminId)
+      : invoice.createdBy;
+    const settlementAmount = Math.max(
+      0,
+      Number(invoice.amount || 0) - Number(invoice.discount || 0),
+    );
+
+    const voucher = new Voucher({
+      voucherType: "RECEIPT",
+      date: invoice.paymentDate || new Date(),
+      narration: `Payment received for invoice ${invoice.invoice_id}`,
+      referenceType: "sales_payment",
+      reference: invoice.invoice_id,
+      sourceType: "sales_payment",
+      sourceId: invoice._id,
+      lines: [
+        {
+          ledgerAccount: cashAccount._id,
+          debit: settlementAmount,
+          credit: 0,
+          narration: "Cash/Bank Receipt",
+        },
+        {
+          ledgerAccount: arAccount._id,
+          debit: 0,
+          credit: settlementAmount,
+          narration: "Reduce Accounts Receivable",
+        },
+      ],
+      createdBy,
+    });
+
+    await voucher.save();
+  }
+
+  private async upsertInvoiceVouchers(invoice: IInvoice, adminId: string) {
+    await Voucher.deleteMany({
+      sourceType: {
+        $in: ["sales_invoice", "sales_payment", "Invoice", "InvoicePayment"],
+      },
+      sourceId: invoice._id,
+    });
+
+    if (invoice.amount > 0) {
+      await this.createInvoiceVoucher(invoice, adminId);
+    }
+
+    if (invoice.status === "Paid") {
+      await this.createPaymentVoucher(invoice, adminId);
+    }
+  }
+
+  private async deleteInvoiceVouchers(invoice: IInvoice) {
+    await Voucher.deleteMany({
+      sourceType: {
+        $in: ["sales_invoice", "sales_payment", "Invoice", "InvoicePayment"],
+      },
+      sourceId: invoice._id,
+    });
   }
 
   async createAdmin(req: Request, res: Response): Promise<Response> {
@@ -3082,42 +3263,36 @@ export class AdminController {
   async createClient(req: Request, res: Response): Promise<Response> {
     try {
       const clientData: IClient = req.body;
-      const {
-        companyName,
-        address,
-        contactPerson,
-        email,
-        password,
-        phone,
-        description,
-      } = clientData;
 
-      if (!companyName || !address || !contactPerson) {
+      if (!clientData?.email || !clientData?.password) {
         return res.status(400).json({
-          message: "companyName, address, and contactPerson are required",
+          message: "Email and password are required",
         });
       }
 
-      const normalizedEmail = email?.trim().toLowerCase();
-      const clientPayload: Partial<IClient> = {
-        companyName,
-        contactPerson,
-        phone,
-        address,
-        description,
+      const normalizedEmail = clientData.email.trim().toLowerCase();
+      //to avoid duplication of clients
+      // const existingUser = await User.findOne({ email: normalizedEmail });
+      // if (existingUser) {
+      //   return res.status(409).json({
+      //     message: "Client already exist",
+      //   });
+      // }
+
+      const hashedPassword = await bcrypt.hash(clientData.password, 10);
+
+      const client = new Client({
+        email: normalizedEmail,
+        password: hashedPassword,
+        companyName: clientData.companyName,
+        contactPerson: clientData.contactPerson,
+        phone: clientData.phone,
+        address: clientData.address,
+        description: clientData.description,
         createdAt: new Date(),
         lastLogin: null,
-      };
+      });
 
-      if (normalizedEmail) {
-        clientPayload.email = normalizedEmail;
-      }
-
-      if (password) {
-        clientPayload.password = await bcrypt.hash(password, 10);
-      }
-
-      const client = new Client(clientPayload as IClient);
       const savedClient = await client.save();
 
       return res.status(201).json({
@@ -3132,10 +3307,12 @@ export class AdminController {
         (error as { code?: number }).code === 11000
       ) {
         const duplicateKey = (error as any).keyValue;
-        console.error("Duplicate key error while creating client:", duplicateKey);
+        console.error(
+          "Duplicate key error while creating client:",
+          duplicateKey,
+        );
         return res.status(409).json({
           message: "Client already exist",
-          duplicate: duplicateKey,
         });
       }
       if (error instanceof Error) {
@@ -3338,11 +3515,9 @@ export class AdminController {
         nationality: employeeData.nationality,
         photoUrl: employeeData.photoUrl,
         emiratesIdUrl: employeeData.emiratesIdUrl,
-        emiratesIdNumber: employeeData.emiratesIdNumber,
         emiratesIssueDate: employeeData.emiratesIssueDate,
         emiratesExpiryDate: employeeData.emiratesExpiryDate,
         passportUrl: employeeData.passportUrl,
-        passportNumber: employeeData.passportNumber,
         passportIssueDate: employeeData.passportIssueDate,
         passportExpiryDate: employeeData.passportExpiryDate,
         addressline1: employeeData.addressline1,
@@ -4347,6 +4522,7 @@ export class AdminController {
         discountPercent: invoiceData.discountPercent,
         tax: invoiceData.tax,
         notes: invoiceData.notes,
+        paymentMethod: invoiceData.paymentMethod,
         status: "Pending",
         createdBy: new Types.ObjectId(adminId),
       });
@@ -4360,6 +4536,14 @@ export class AdminController {
       );
       if (savedInvoice.project_id) {
         await savedInvoice.populate("project_id", "projectName");
+      }
+
+      try {
+        const authReq = req as AuthRequest;
+        const adminId = authReq.user?.id ?? savedInvoice.createdBy.toString();
+        await this.upsertInvoiceVouchers(savedInvoice, adminId);
+      } catch (error) {
+        console.error("Warning: accounting voucher was not created:", error);
       }
 
       return res.status(201).json({
@@ -4419,9 +4603,33 @@ export class AdminController {
         updates.amount = updateData.amount;
       }
 
+      if (updateData.discount !== undefined) {
+        if (updateData.discount < 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Discount cannot be negative",
+          });
+        }
+        updates.discount = updateData.discount;
+      }
+
+      if (updateData.tax !== undefined) {
+        if (updateData.tax < 0) {
+          return res.status(400).json({
+            success: false,
+            message: "Tax cannot be negative",
+          });
+        }
+        updates.tax = updateData.tax;
+      }
+
       // Update description if provided
       if (updateData.description !== undefined) {
         updates.description = updateData.description;
+      }
+
+      if (updateData.paymentMethod !== undefined) {
+        updates.paymentMethod = updateData.paymentMethod;
       }
 
       if (updateData.items !== undefined) {
@@ -4492,7 +4700,10 @@ export class AdminController {
       }
 
       if (updateData.discountPercent !== undefined) {
-        if (updateData.discountPercent < 0 || updateData.discountPercent > 100) {
+        if (
+          updateData.discountPercent < 0 ||
+          updateData.discountPercent > 100
+        ) {
           return res.status(400).json({
             success: false,
             message: "Discount percent must be between 0 and 100",
@@ -4577,6 +4788,24 @@ export class AdminController {
         .populate("client_id", "companyName contactPerson email")
         .populate("project_id", "projectName")
         .populate("createdBy", "username");
+
+      if (
+        updatedInvoice &&
+        (updateData.amount !== undefined ||
+          updateData.discount !== undefined ||
+          updateData.tax !== undefined ||
+          updateData.status !== undefined ||
+          updateData.paymentMethod !== undefined)
+      ) {
+        try {
+          const authReq = req as AuthRequest;
+          const adminId =
+            authReq.user?.id ?? updatedInvoice.createdBy?.toString() ?? "";
+          await this.upsertInvoiceVouchers(updatedInvoice, adminId);
+        } catch (error) {
+          console.error("Warning: accounting voucher sync failed:", error);
+        }
+      }
 
       return res.status(200).json({
         success: true,
@@ -4685,13 +4914,9 @@ export class AdminController {
       // Get invoices
       const invoices = await Invoice.find(query)
         .sort({ invoiceDate: -1 })
-        .populate(
-          "client_id",
-          "companyName contactPerson role email phone address",
-        )
+        .populate("client_id", "companyName contactPerson")
         .populate("project_id", "projectName")
-        .populate("createdBy", "username")
-        .lean();
+        .populate("createdBy", "username");
 
       // Statistics
       const totalAmount = invoices.reduce(
@@ -4772,8 +4997,9 @@ export class AdminController {
         });
       }
 
-      // Delete the invoice
+      // Delete the invoice and related accounting vouchers
       await Invoice.findByIdAndDelete(invoice._id);
+      await this.deleteInvoiceVouchers(invoice);
 
       return res.status(200).json({
         success: true,

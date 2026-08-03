@@ -28,11 +28,9 @@ export interface IEmployee extends IUser {
   nationality: string;
   photoUrl: string;
   emiratesIdUrl: string;
-  emiratesIdNumber?: string;
   emiratesIssueDate: Date;
   emiratesExpiryDate: Date;
   passportUrl: string;
-  passportNumber?: string;
   passportIssueDate: Date;
   passportExpiryDate: Date;
   addressline1?: string;
@@ -71,10 +69,10 @@ export interface validitatedUser {
 export interface IClient extends IUser {
   companyName: string;
   contactPerson: string;
-  phone?: string;
-  address: string;
+  phone: string;
+  address?: string;
   createdAt: Date;
-  description?: string;
+  description: string;
 }
 
 export interface ClientUpdateFields {

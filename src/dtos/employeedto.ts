@@ -15,11 +15,9 @@ export interface CreateEmployeeDto {
   nationality: string;
   photoUrl?: string;
   emiratesIdUrl?: string;
-  emiratesIdNumber?: string;
   emiratesIssueDate?: Date;
   emiratesExpiryDate?: Date;
   passportUrl?: string;
-  passportNumber?: string;
   passportIssueDate?: Date;
   passportExpiryDate?: Date;
   addressline1?: string;
@@ -46,11 +44,9 @@ export interface EmployeeUpdateFields {
   nationality?: string;
   photoUrl?: string;
   emiratesIdUrl?: string;
-  emiratesIdNumber?: string;
   emiratesIssueDate?: Date;
   emiratesExpiryDate?: Date;
   passportUrl?: string;
-  passportNumber?: string;
   passportIssueDate?: Date;
   passportExpiryDate?: Date;
   addressline1?: string;
