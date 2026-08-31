@@ -3264,31 +3264,37 @@ export class AdminController {
     try {
       const clientData: IClient = req.body;
 
-      if (!clientData?.email || !clientData?.password) {
-        return res.status(400).json({
-          message: "Email and password are required",
-        });
+      const providedEmail =
+        typeof clientData?.email === "string" ? clientData.email.trim() : "";
+      let normalizedEmail: string | undefined;
+
+      if (providedEmail) {
+        normalizedEmail = providedEmail.toLowerCase();
+        const existingUser = await User.findOne({ email: normalizedEmail });
+        if (existingUser) {
+          return res.status(409).json({
+            message: "Client already exist",
+          });
+        }
       }
 
-      const normalizedEmail = clientData.email.trim().toLowerCase();
-      //to avoid duplication of clients
-      // const existingUser = await User.findOne({ email: normalizedEmail });
-      // if (existingUser) {
-      //   return res.status(409).json({
-      //     message: "Client already exist",
-      //   });
-      // }
-
-      const hashedPassword = await bcrypt.hash(clientData.password, 10);
+      let hashedPassword: string | undefined;
+      if (
+        clientData?.password &&
+        typeof clientData.password === "string" &&
+        clientData.password.trim() !== ""
+      ) {
+        hashedPassword = await bcrypt.hash(clientData.password, 10);
+      }
 
       const client = new Client({
-        email: normalizedEmail,
-        password: hashedPassword,
-        companyName: clientData.companyName,
-        contactPerson: clientData.contactPerson,
-        phone: clientData.phone,
-        address: clientData.address,
-        description: clientData.description,
+        ...(normalizedEmail && { email: normalizedEmail }),
+        ...(hashedPassword && { password: hashedPassword }),
+        companyName: clientData?.companyName,
+        contactPerson: clientData?.contactPerson,
+        phone: clientData?.phone,
+        address: clientData?.address,
+        description: clientData?.description,
         createdAt: new Date(),
         lastLogin: null,
       });
