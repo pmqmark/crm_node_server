@@ -2,7 +2,7 @@ import { Schema, Types } from "mongoose";
 export interface IUser extends Document {
   email?: string;
   password?: string; // Moved to base interface
-  role: "admin" | "employee";
+  role: "admin" | "employee" | "client";
   createdAt: Date;
   lastLogin: Date | null;
   isActive: boolean;
