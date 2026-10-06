@@ -26,6 +26,19 @@ interface PopulatedEmployee {
   employee_id?: string;
 }
 
+const getInvoiceProjectPopulate = () => ({
+  path: "project_id",
+  select: "_id projectName projectDescription",
+  transform: (project: any) =>
+    project
+      ? {
+          _id: project._id,
+          projectName: project.projectName,
+          description: project.projectDescription,
+        }
+      : null,
+});
+
 export class ClientController {
   async updateClient(req: Request, res: Response): Promise<Response> {
     try {
@@ -498,7 +511,7 @@ export class ClientController {
 
       const invoices = await Invoice.find(query)
         .sort({ invoiceDate: -1 })
-        .populate('project_id', 'projectName');
+        .populate(getInvoiceProjectPopulate());
 
       // Calculate statistics
       const totalAmount = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
@@ -559,7 +572,7 @@ export class ClientController {
         invoice_id,
         client_id: clientId
       })
-        .populate('project_id', 'projectName');
+        .populate(getInvoiceProjectPopulate());
 
       if (!invoice) {
         return res.status(404).json({
