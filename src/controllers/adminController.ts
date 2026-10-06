@@ -45,6 +45,19 @@ import LeaveForEmp from "../models/leaveforemp";
 import ProjectDisplay from "../models/project_display";
 import ProjectDocumentation from "../models/projectDocumentation";
 
+const getInvoiceProjectPopulate = () => ({
+  path: "project_id",
+  select: "_id projectName projectDescription",
+  transform: (project: any) =>
+    project
+      ? {
+          _id: project._id,
+          projectName: project.projectName,
+          description: project.projectDescription,
+        }
+      : null,
+});
+
 interface CreateScheduleDto {
   employee_ids: string[];
   description: string;
@@ -2081,7 +2094,7 @@ export class AdminController {
       // Populate references for response
       await savedInvoice.populate([
         { path: "client_id", select: "companyName contactPerson email" },
-        { path: "project_id", select: "projectName" },
+        getInvoiceProjectPopulate(),
       ]);
 
       return res.status(201).json({
@@ -2537,7 +2550,7 @@ export class AdminController {
         },
       ).populate([
         { path: "client_id", select: "companyName contactPerson email" },
-        { path: "project_id", select: "projectName" },
+        getInvoiceProjectPopulate(),
       ]);
 
       if (!updatedInvoice) {
@@ -4541,7 +4554,7 @@ export class AdminController {
         "companyName contactPerson email",
       );
       if (savedInvoice.project_id) {
-        await savedInvoice.populate("project_id", "projectName");
+        await savedInvoice.populate(getInvoiceProjectPopulate());
       }
 
       try {
@@ -4792,7 +4805,7 @@ export class AdminController {
         { new: true, runValidators: true },
       )
         .populate("client_id", "companyName contactPerson email")
-        .populate("project_id", "projectName")
+        .populate(getInvoiceProjectPopulate())
         .populate("createdBy", "username");
 
       if (
@@ -4864,7 +4877,7 @@ export class AdminController {
         "companyName contactPerson role email phone address",
       );
       if (invoice.project_id) {
-        await invoice.populate("project_id", "projectName");
+        await invoice.populate(getInvoiceProjectPopulate());
       }
       await invoice.populate("createdBy", "username");
 
@@ -4921,7 +4934,7 @@ export class AdminController {
       const invoices = await Invoice.find(query)
         .sort({ invoiceDate: -1 })
         .populate("client_id", "companyName contactPerson")
-        .populate("project_id", "projectName")
+        .populate(getInvoiceProjectPopulate())
         .populate("createdBy", "username");
 
       // Statistics
